@@ -1,0 +1,193 @@
+%% Boulder CFR & Draw Management — System Flow
+%% Render: https://mermaid.live or VS Code Mermaid extension
+
+flowchart TB
+
+  %% ═══════════════════════════════════════════════════════════
+  %% ROLES
+  %% ═══════════════════════════════════════════════════════════
+  subgraph ROLES["👥 ROLES (6)"]
+    direction LR
+    R1[contractor_admin]
+    R2[contractor_pm]
+    R3[contractor_viewer]
+    R4[owner]
+    R5[architect]
+    R6[accountant]
+  end
+
+  %% ═══════════════════════════════════════════════════════════
+  %% INPUTS
+  %% ═══════════════════════════════════════════════════════════
+  subgraph INPUTS["📥 DATA INPUTS"]
+    direction TB
+    I1[Invoices / Receipts]
+    I2[Payroll]
+    I3[Expenses]
+    I4[Change Orders]
+    I5[Owner Draw Payments]
+  end
+
+  %% ═══════════════════════════════════════════════════════════
+  %% CORE DATA TABLES
+  %% ═══════════════════════════════════════════════════════════
+  subgraph DB["🗄️ DATABASE (Supabase Postgres)"]
+    direction TB
+
+    subgraph DB_SETUP["Setup"]
+      T1[(organizations)]
+      T2[(users)]
+      T3[(projects)]
+      T4[(divisions · 18)]
+      T5[(bid_line_items · 118)]
+      T6[(project_memberships)]
+    end
+
+    subgraph DB_TX["Transactions"]
+      T7[(transactions · 1872 debits)]
+      T8[(received_funds · 274 credits)]
+      T9[(change_orders)]
+    end
+
+    subgraph DB_DRAW["Draw cycle"]
+      T10[(draws · 17)]
+      T11[(draw_line_items · 306 G703)]
+      T12[(invoice_backup · 1711)]
+    end
+
+    T13[(audit_log)]
+  end
+
+  %% ═══════════════════════════════════════════════════════════
+  %% PROCESS PIPELINE
+  %% ═══════════════════════════════════════════════════════════
+  subgraph PROC["⚙️ PROCESSES"]
+    direction TB
+    P1[Log transaction]
+    P2[Create Draw N]
+    P3[Enter per-division % complete]
+    P4[Compute G702 9-line summary]
+    P5[Submit Draw]
+    P6[Architect certifies]
+    P7[Owner pays → received_funds entry]
+    P8[Reconcile: Cash balance = Spend − Retainage − Received]
+    P9[Overrun detection]
+  end
+
+  %% ═══════════════════════════════════════════════════════════
+  %% VIEWS / UI
+  %% ═══════════════════════════════════════════════════════════
+  subgraph UI["🖥️ UI TABS"]
+    direction TB
+    U1[Overview<br/>Stats + Draw history + Overruns]
+    U2[CFR — Summary<br/>18 divisions + Cash balance]
+    U3[CFR — Bid Items<br/>118 line items, overrun flags]
+    U4[CFR — Transactions<br/>1872 debits paginated]
+    U5[Draws list<br/>All 17 AIA pay apps]
+    U6[Draw Detail<br/>G702 + G703 + backup]
+    U7[Change Orders]
+    U8[Team / Settings]
+  end
+
+  %% ═══════════════════════════════════════════════════════════
+  %% ROLE → UI MATRIX
+  %% ═══════════════════════════════════════════════════════════
+  R1 & R2 --> U1 & U2 & U3 & U4 & U5 & U6 & U7 & U8
+  R3 --> U1 & U5
+  R4 -.blocked from CFR.-> U1 & U5 & U6
+  R5 --> U1 & U5 & U6 & U7
+  R6 --> U1 & U2 & U3 & U4
+
+  %% ═══════════════════════════════════════════════════════════
+  %% INPUT → PROCESS → DB
+  %% ═══════════════════════════════════════════════════════════
+  I1 & I2 & I3 --> P1
+  P1 --> T7
+  I4 --> T9
+  I5 --> P7
+  P7 --> T8
+
+  %% ═══════════════════════════════════════════════════════════
+  %% DRAW LIFECYCLE (state machine)
+  %% ═══════════════════════════════════════════════════════════
+  subgraph DRAW_STATE["🔄 Draw state machine"]
+    direction LR
+    S1(draft) --> S2(submitted)
+    S2 --> S3(certified)
+    S3 --> S4(paid)
+    S1 --> S5(voided)
+    S2 --> S5
+  end
+
+  P2 --> S1
+  P3 --> T11
+  P4 --> T10
+  P5 --> S2
+  P6 --> S3
+  P7 --> S4
+
+  %% ═══════════════════════════════════════════════════════════
+  %% COMPUTED FLOWS
+  %% ═══════════════════════════════════════════════════════════
+  T7 --> |sum per division| CFR_SPEND[Gross spend]
+  T8 --> |sum per division| CFR_RECV[Net received]
+  T11 --> |col I per draw| RETAIN[Retainage held]
+
+  CFR_SPEND & CFR_RECV & RETAIN --> P8
+  P8 --> U2
+
+  T5 --> |budget vs tx sum| P9
+  P9 --> U1 & U3
+
+  %% ═══════════════════════════════════════════════════════════
+  %% DB → UI
+  %% ═══════════════════════════════════════════════════════════
+  T3 & T4 & T10 --> U1
+  T4 & T5 & T7 & T8 --> U2
+  T5 & T7 --> U3
+  T7 --> U4
+  T10 --> U5
+  T10 & T11 & T12 --> U6
+  T9 --> U7
+  T6 & T2 & T1 --> U8
+
+  %% ═══════════════════════════════════════════════════════════
+  %% AIA FORMULAS (G702)
+  %% ═══════════════════════════════════════════════════════════
+  subgraph AIA["📋 G702 computation"]
+    direction TB
+    F1["Line 3 = Line 1 + Net COs"]
+    F2["Line 4 = Σ G703 col G"]
+    F3["Line 5 = Σ G703 col I (retainage)"]
+    F4["Line 6 = Line 4 − Line 5"]
+    F5["Line 7 = prior draw Line 6"]
+    F6["Line 8 = Line 6 − Line 7 → $ PAYMENT DUE"]
+    F7["Line 9 = Line 3 − Line 6 → balance"]
+    F1 --> F2 --> F3 --> F4 --> F5 --> F6 --> F7
+  end
+
+  T11 --> F2 & F3
+  T9 --> F1
+  F6 --> P7
+
+  %% ═══════════════════════════════════════════════════════════
+  %% AUDIT
+  %% ═══════════════════════════════════════════════════════════
+  P1 & P2 & P5 & P6 & P7 -.->|every mutation| T13
+
+  %% ═══════════════════════════════════════════════════════════
+  %% STYLING
+  %% ═══════════════════════════════════════════════════════════
+  classDef roleBox fill:#fef3c7,stroke:#f59e0b,color:#78350f
+  classDef dbBox fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
+  classDef procBox fill:#dcfce7,stroke:#16a34a,color:#14532d
+  classDef uiBox fill:#fce7f3,stroke:#db2777,color:#831843
+  classDef aiaBox fill:#e0e7ff,stroke:#4f46e5,color:#312e81
+  classDef stateBox fill:#fed7aa,stroke:#ea580c,color:#7c2d12
+
+  class R1,R2,R3,R4,R5,R6 roleBox
+  class T1,T2,T3,T4,T5,T6,T7,T8,T9,T10,T11,T12,T13 dbBox
+  class P1,P2,P3,P4,P5,P6,P7,P8,P9 procBox
+  class U1,U2,U3,U4,U5,U6,U7,U8 uiBox
+  class F1,F2,F3,F4,F5,F6,F7 aiaBox
+  class S1,S2,S3,S4,S5 stateBox

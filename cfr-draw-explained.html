@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CFR vs Draw — Who Sees What?</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; margin: 0; padding: 24px; background: #fafafa; color: #171717; max-width: 1200px; margin: 0 auto; }
+  h1 { font-size: 24px; margin: 0 0 4px 0; }
+  h2 { font-size: 18px; margin: 28px 0 10px 0; border-bottom: 2px solid #e5e5e5; padding-bottom: 6px; }
+  p.sub { color: #737373; font-size: 14px; margin: 0 0 20px 0; }
+  .controls { margin: 12px 0; }
+  button { padding: 7px 14px; border: 1px solid #d4d4d4; background: white; border-radius: 4px; cursor: pointer; font-size: 13px; margin-right: 6px; }
+  button:hover { background: #f5f5f5; }
+  #diagram { background: white; border: 1px solid #e5e5e5; border-radius: 8px; padding: 20px; overflow: auto; }
+  .rule-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+  .rule-table th { text-align: left; padding: 10px 14px; background: #f5f5f5; border: 1px solid #e5e5e5; font-weight: 600; }
+  .rule-table td { padding: 10px 14px; border: 1px solid #e5e5e5; vertical-align: top; }
+  .yes { color: #16a34a; font-weight: 600; }
+  .no { color: #dc2626; font-weight: 600; }
+  .key-box { background: #fef3c7; border: 2px solid #f59e0b; border-radius: 8px; padding: 16px; margin: 16px 0; }
+  .key-box b { color: #78350f; }
+  .analogy { background: #e0e7ff; border-left: 4px solid #4f46e5; padding: 14px; margin: 14px 0; border-radius: 4px; }
+  code { background: #f3f4f6; padding: 1px 5px; border-radius: 3px; font-size: 0.92em; }
+</style>
+</head>
+<body>
+<h1>CFR vs Draw — Who Sees What & When?</h1>
+<p class="sub">Understanding the relationship between the two documents and who can view each.</p>
+
+<h2>The Key Rule</h2>
+<div class="key-box">
+  <b>CFR contains Draws, not the other way around.</b><br><br>
+  CFR = contractor's <em>full financial picture</em> (every cost + every payment received).<br>
+  Draw = one <em>monthly bill</em> sent to the owner (part of CFR's data).<br><br>
+  So: CFR view shows everything. Draw view shows only the billing side — <b>but contractor can peek at CFR context</b> while viewing a draw.
+</div>
+
+<h2>Visual: Who sees what</h2>
+<div class="controls">
+  <button onclick="downloadPNG()">⬇ Download PNG</button>
+  <button onclick="downloadSVG()">⬇ Download SVG</button>
+</div>
+
+<div id="diagram" class="mermaid">
+flowchart TB
+
+  subgraph ACTORS["👥 Who is viewing?"]
+    direction LR
+    A1[👷 Contractor]
+    A2[🏢 Owner]
+    A3[📐 Architect]
+    A4[💼 Accountant]
+  end
+
+  subgraph DOCS["📄 Two Documents"]
+    direction LR
+    D1[DRAW<br/>G702 / G703<br/>monthly invoice to Owner]
+    D2[CFR<br/>Cost-to-Finish Report<br/>contractor's internal books]
+  end
+
+  subgraph VIEWS["🖥️ What they actually see on screen"]
+    direction TB
+    V1[Contractor opens DRAW<br/>→ sees Draw + CFR side-pane<br/>full context]
+    V2[Contractor opens CFR<br/>→ sees CFR only<br/>internal financial view]
+    V3[Owner opens DRAW<br/>→ sees Draw only<br/>no CFR access]
+    V4[Owner tries CFR<br/>→ BLOCKED<br/>tab hidden from owner nav]
+    V5[Architect opens DRAW<br/>→ sees Draw only<br/>to certify work]
+    V6[Accountant opens CFR<br/>→ sees CFR only<br/>reconciliation view]
+  end
+
+  A1 -->|opens Draw| V1
+  A1 -->|opens CFR| V2
+  A2 -->|opens Draw| V3
+  A2 -->|tries CFR| V4
+  A3 -->|opens Draw| V5
+  A4 -->|opens CFR| V6
+
+  D1 --> V1 & V3 & V5
+  D2 --> V1 & V2 & V6
+
+  V4 ==X==> X[❌ Cannot see contractor's<br/>real costs or profit]
+
+  classDef contractor fill:#dcfce7,stroke:#16a34a,color:#14532d,font-weight:bold
+  classDef owner fill:#fce7f3,stroke:#db2777,color:#831843,font-weight:bold
+  classDef architect fill:#e0e7ff,stroke:#4f46e5,color:#312e81,font-weight:bold
+  classDef accountant fill:#fef3c7,stroke:#f59e0b,color:#78350f,font-weight:bold
+  classDef draw fill:#fed7aa,stroke:#ea580c,color:#7c2d12
+  classDef cfr fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
+  classDef blocked fill:#fee2e2,stroke:#dc2626,color:#7f1d1d,font-weight:bold
+
+  class A1 contractor
+  class A2 owner
+  class A3 architect
+  class A4 accountant
+  class D1 draw
+  class D2 cfr
+  class V1,V2,V6 contractor
+  class V3,V5 draw
+  class V4,X blocked
+</div>
+
+<h2>Rule table</h2>
+<table class="rule-table">
+  <tr>
+    <th>Role</th>
+    <th>Viewing Draw</th>
+    <th>Viewing CFR</th>
+  </tr>
+  <tr>
+    <td><b>Contractor</b> (admin / PM)</td>
+    <td><span class="yes">✓ Draw + CFR side-pane</span><br>Full financial context while billing</td>
+    <td><span class="yes">✓ Full CFR</span><br>Internal spend vs. budget</td>
+  </tr>
+  <tr>
+    <td><b>Owner</b></td>
+    <td><span class="yes">✓ Draw only</span><br>Sees what they owe, retainage, balance</td>
+    <td><span class="no">✗ BLOCKED</span><br>CFR tab hidden from their nav</td>
+  </tr>
+  <tr>
+    <td><b>Architect</b></td>
+    <td><span class="yes">✓ Draw only</span><br>Used for certifying work completion</td>
+    <td><span class="no">✗ No access</span><br>Not their concern</td>
+  </tr>
+  <tr>
+    <td><b>Accountant</b></td>
+    <td><span class="yes">✓ Draw</span></td>
+    <td><span class="yes">✓ Full CFR</span><br>Reconciles spend vs received</td>
+  </tr>
+  <tr>
+    <td><b>Contractor viewer</b> (read-only staff)</td>
+    <td><span class="yes">✓ Draw only</span></td>
+    <td><span class="no">✗ Restricted</span></td>
+  </tr>
+</table>
+
+<h2>Why Owner can't see CFR</h2>
+<div class="analogy">
+  <b>Analogy:</b> You hire a contractor to build your house for $500K fixed price. The contractor's real cost is $420K — they make $80K profit. If you saw their CFR, you'd see the $80K margin and demand a discount. That's why fixed-price contracts <em>hide</em> internal costs.<br><br>
+  <b>The owner pays based on:</b> scheduled value (agreed budget per division) × % completed — not on what the contractor actually spent.
+</div>
+
+<h2>What the CFR side-pane on a Draw shows</h2>
+<p style="font-size:14px;">When contractor opens a Draw, a collapsible side-panel shows CFR data:</p>
+<ul style="font-size:14px;line-height:1.7;">
+  <li>Per-division <b>gross spend</b> (real costs from transactions)</li>
+  <li><b>% of budget used</b> with red bars for over-budget divisions</li>
+  <li>This draw's <b>"this period" amount</b> overlaid per division</li>
+  <li>Lets contractor verify: "am I billing in line with what I actually spent?"</li>
+</ul>
+
+<h2>Numbers must tie out</h2>
+<p style="font-size:14px;">If CFR and Draw don't match, something is wrong:</p>
+<div style="background: #f9fafb; border: 1px solid #e5e5e5; border-radius: 6px; padding: 16px; font-family: ui-monospace, monospace; font-size: 13px;">
+  <b>Per division:</b><br>
+  CFR Gross Spend ≈ G703 col G (Total Completed)<br>
+  CFR Net Received = G702 Line 6 cumulative<br>
+  CFR Retainage = G703 col I<br><br>
+  <b>Cash balance check:</b><br>
+  Spend − Retainage − Received ≈ $0 (reconciled)<br>
+  If &gt; $0: owner owes contractor<br>
+  If &lt; $0: contractor billed more than spent (prepayment / overbilled)
+</div>
+
+<h2>Summary in one sentence</h2>
+<div class="key-box" style="background:#dcfce7;border-color:#16a34a;">
+  <b>Draw = external billing doc (Owner sees it).</b><br>
+  <b>CFR = internal financial truth (Owner never sees it).</b><br>
+  <b>Contractor can see both simultaneously</b> when reviewing a Draw, to verify their billing matches reality.
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: 'default', flowchart: { curve: 'basis', padding: 20 }, themeVariables: { fontSize: '14px' } });
+
+  function downloadSVG() {
+    const svg = document.querySelector('#diagram svg');
+    if (!svg) return alert('Diagram not rendered yet.');
+    const clone = svg.cloneNode(true);
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    const src = new XMLSerializer().serializeToString(clone);
+    const blob = new Blob([src], { type: 'image/svg+xml' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'cfr-draw-who-sees-what.svg';
+    a.click();
+  }
+
+  function downloadPNG() {
+    const svg = document.querySelector('#diagram svg');
+    if (!svg) return alert('Diagram not rendered yet.');
+    const src = new XMLSerializer().serializeToString(svg);
+    const img = new Image();
+    const bbox = svg.getBoundingClientRect();
+    const scale = 2;
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = bbox.width * scale;
+      canvas.height = bbox.height * scale;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.scale(scale, scale);
+      ctx.drawImage(img, 0, 0);
+      canvas.toBlob((blob) => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'cfr-draw-who-sees-what.png';
+        a.click();
+      });
+    };
+    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(src)));
+  }
+</script>
+</body>
+</html>

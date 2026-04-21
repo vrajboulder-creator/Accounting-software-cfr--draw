@@ -1,0 +1,221 @@
+Product Requirements Document
+Construction CFR & Draw Management System
+Version 3.0  |  Multi-Tenant SaaS
+1. Product Overview
+Product Name: CFR & Draw Management System (working title)
+Type: Multi-tenant SaaS for construction contractors, owners, and architects
+Built on AIA Standards: G702 Application & Certification for Payment, G703 Continuation Sheet, and CSI MasterFormat division structure
+Objective: Unify internal cost tracking (CFR) and external owner billing (AIA Draws) in one system so that cost, progress, and billing remain reconciled in real time across multiple projects and organizations.
+1.1 Core Display Rule (User Request)
+When user selects Draw view → system shows the Draw (G702 + G703 + invoice backup) AND the CFR alongside, because a draw is meaningless without budget context.
+When user selects CFR view → system shows CFR only (internal cost tracking, no billing context required).
+2. Problem Statement
+Based on the reference files (CFR_v31.xlsx and Draw_17.xlsx for the Residence Inn Waxahachie project), current workflow has these pain points:
+CFR and Draws are maintained as separate Excel workbooks, versioned by hand (v31 is the 31st revision).
+Reconciliation between cumulative spend (CFR) and periodic billing (G703 This Period column) is manual and error-prone.
+Overruns are visible in CFR (e.g., Metal Flashing at 423% of budget, Flooring Install at 213%) but do not automatically flag on the Draw.
+Retainage calculation is inconsistent — Summary sheet shows -$539,680 while G703 shows +$539,680; sign conventions are not enforced.
+Backup invoices (Boulder Invoice sheet, 1,750 line items) must be manually mapped to G703 lines; no validation.
+No audit trail of changes between draws.
+No multi-project or multi-organization support — each project is a separate file tree.
+3. Goals & Non-Goals
+3.1 Primary Goals
+Replace the Excel workflow with a web-based system that produces identical AIA G702/G703 output (printable, auditable).
+Single source of truth: transactions and draws are canonical; CFR is a cumulative view, not a separate document.
+Automatic reconciliation between cost actuals and billed amounts per division.
+Multi-tenant: contractors manage their own projects; owners see only what contractors share with them.
+Import existing Excel (CFR_v31 + Draw_17 shape) to bootstrap projects in the system.
+3.2 Secondary Goals
+Real-time dashboards for contract sum, % complete, billed to date, overruns.
+Invoice ingestion and line-item mapping to G703 divisions.
+Change order management (G702 section, $0 on Draw 17 but must be supported).
+Variable retainage per line item (G703 Column I).
+3.3 Explicitly Out of Scope (v1)
+General ledger / full accounting replacement (QuickBooks, Sage integration is a future enhancement, not a replacement).
+Tax computation.
+Multi-currency (US projects only in v1).
+Subcontractor portal (Boulder-style vendors enter invoices; for v1 these are imported or entered by the GC).
+Lien waiver generation (v2).
+4. Domain Model & Key Terms
+Precise definitions — these are non-negotiable because they govern system behavior.
+4.1 Critical Distinction (Corrects Earlier PRD Draft)
+% Complete ≠ % Consumed. The earlier PRD draft defined "% Completion = Actual Cost / Budget". This is wrong and will corrupt billing. In construction, physical progress is entered by the field team; cost consumption is a variance signal. A division at 213% cost consumption (like Flooring Install in the reference data) is 100% physically complete but massively over budget. The system must store these as separate fields.
+5. System Architecture
+5.1 Conceptual Flow
+The flow is NOT "CFR generates Draw" as the earlier draft stated. The correct flow:
+Contractor sets up project: enters contract sum, divisions, scheduled values, bid line items.
+Transactions (invoices, payroll) are entered or imported throughout the period → aggregated into CFR Actual Cost.
+At period end, PM enters physical % complete per division (or adjusts scheduled value completion).
+System drafts Draw N from: (a) physical % per division, (b) stored materials, (c) previous draw amounts, (d) retainage rules.
+Contractor reviews draft, adjusts, submits.
+Owner / Architect reviews and certifies.
+Payment recorded → CFR "Cash Received" updated.
+Reconciliation engine continuously checks CFR vs. Draws for mismatches.
+5.2 Technical Stack (Recommended)
+6. Multi-Tenant Model
+6.1 Entities
+Organization: a Contractor, Owner, or Architect firm. Example: Divine Force JD RI Waxahachie, LLC (contractor); Prevail Waxahachie, LLC (owner); Maust Architectural Services (architect).
+User: belongs to one Organization; can have multiple roles across projects.
+Project: owned by exactly one Contractor Organization; has relationships to Owner Org and Architect Org.
+Project Membership: grants a User access to a Project with a specific Role.
+6.2 Roles
+Critical: Owner role does NOT see CFR. Internal margin data (bid line items, subcontractor costs, overruns) is never exposed to the Owner. The Owner only ever sees the G702 + G703 + approved backup invoices for draws they're paying.
+7. Functional Requirements
+7.1 Project Setup Module
+User creates a project by either:
+Manual entry: name, location, contract sum, owner, architect, contract date, retainage %, then add divisions and scheduled values.
+Excel import: upload existing CFR_v31-format file. System parses Summary sheet to extract divisions + scheduled values, Bid sheet to extract line items, Detail sheet to extract historical transactions.
+Required fields
+Project name, project number (optional), street/city/state
+Contractor Org, Owner Org, Architect Org
+Contract date, contract sum (in cents)
+Default retainage rate (e.g., 10%) and whether it applies to stored materials
+18 divisions (preseeded from CSI; user can add/edit) with scheduled values summing to contract sum
+Optional: bid line items under each division (like CFR Bid sheet)
+7.2 Transactions Module
+The cost-tracking backbone. Replaces the CFR Detail sheet (2,228 rows).
+Fields
+id, project_id, date, amount (cents), vendor, description
+division_id (required), bid_line_item_id (optional)
+transaction_type: invoice, payroll, expense, change_order_cost
+payment_status: pending, paid, voided
+source: manual, excel_import, invoice_upload, api
+linked_invoice_id (nullable, for Boulder-style invoice backup)
+linked_draw_id (nullable, set when this transaction's value is billed in a specific draw)
+Rules
+Amount must be > 0. Refunds / credits are separate negative-signed entries with type = credit.
+Division is mandatory. If importing from a vendor invoice without clear division, system flags for manual mapping.
+Duplicate detection: warn if same vendor + amount + date ±3 days.
+7.3 CFR Engine
+Not a data table — a derived view over projects, divisions, and transactions.
+Per-division rollup (matches CFR Summary sheet columns)
+Scheduled Value (Column A): from project setup
+Gross Total Spend (Column B): SUM(transactions.amount) where division matches
+Retainage (Column C): SUM of retainage withheld across all draws for this division
+Net Total Spend (Column D): B − |C|
+Net Total Received (Column E): SUM of payments received for this division
+Cash Balance (Column E − D): should equal 0 when fully paid; positive = overpaid; negative = underpaid
+Remaining Gross Budget (Column A − B): NEGATIVE = overrun, FLAG
+Overrun detection
+Any division where Gross Total Spend > Scheduled Value × 1.00 is flagged. In reference file: Sitework (marginally), Wood/Plastics (marginally). Any bid line item where spend > budget × 1.05 is flagged as warning; > 1.20 as critical. In reference data, these would fire: Flooring Install 213%, Metal Flashing 423%, Guest Room Windows 164%, Roofing 127%.
+7.4 Draw Generation Module
+Generates AIA G702 + G703 for a period.
+Create new draw
+User selects project + period end date + draw number (auto-increment).
+System pre-fills G703 from previous draw's "Completed to Date" in "From Previous Application" column.
+For each division, PM enters: "Work Completed This Period" (dollars) and/or "Materials Presently Stored".
+System calculates: Completed & Stored to Date = Previous + This Period + Stored; % = that ÷ Scheduled Value; Balance = Scheduled Value − Completed & Stored; Retainage = (Previous + This Period) × retainage_rate.
+G702 auto-fills: line 1 Contract Sum, line 2 Net Change Orders, line 3 = line 1 + line 2, line 4 = G703 Column G total, line 5 = G703 Column I total, line 6 = line 4 − line 5, line 7 = previous draw's line 6, line 8 = line 6 − line 7 (current payment due), line 9 = line 3 − line 6.
+Validation rules
+Completed & Stored to Date cannot exceed Scheduled Value per division without a change order.
+Line 4 of G702 must equal sum of Column G in G703 (auto-enforced, not user-editable).
+Line 8 (current payment due) must be ≥ 0. Negative means over-billed in prior period; requires explicit override.
+Draw cannot be submitted while the project has unresolved overrun flags above $X (configurable).
+Draw states
+draft → submitted → certified → paid → voided. Only draft is editable by contractor. Certified is set by architect. Paid triggers CFR "Net Total Received" update per division.
+7.5 Invoice Backup Module
+Matches Boulder Invoice sheet structure (1,750 line items in reference).
+Each draw has zero or more invoice_backup records tying transactions to G703 lines.
+Fields: draw_id, transaction_id, g703_line_number, description, commentary, amount, retainage_on_line
+System generates an invoice packet PDF per draw: cover sheet + line items grouped by division.
+Validation: sum of backup amounts for a division ≤ that division's "This Period" billing.
+7.6 Reconciliation Engine
+Runs on every transaction save and draw save. Produces alerts, not automatic corrections.
+8. Data Model
+Simplified; all money in integer cents. All tables have created_at, updated_at, created_by, updated_by.
+8.1 Core Tables
+organizations — id, name, type (contractor|owner|architect|accountant), address, contact_email
+users — id, email, name, auth_provider_id
+org_memberships — user_id, org_id, org_role (admin|member|viewer)
+projects — id, contractor_org_id, owner_org_id, architect_org_id, name, project_number, address, contract_date, contract_sum_cents, default_retainage_bps (basis points, e.g., 1000 = 10%), retainage_on_stored_materials (bool), status
+project_memberships — project_id, user_id, project_role (contractor_admin|contractor_pm|contractor_viewer|owner|architect|accountant)
+divisions — id, project_id, number (1–18+), name, scheduled_value_cents, sort_order, retainage_bps_override (nullable)
+bid_line_items — id, division_id, name, budget_cents, sort_order
+transactions — id, project_id, division_id, bid_line_item_id (null), date, amount_cents, vendor, description, type, payment_status, source, linked_invoice_id, linked_draw_id
+change_orders — id, project_id, number, date, description, amount_cents (signed), status (pending|approved|rejected), approved_in_draw_id
+draws — id, project_id, number, period_end_date, status, line1_contract_sum_cents, line2_net_co_cents, line3_contract_sum_to_date_cents, line4_completed_stored_cents, line5_retainage_cents, line6_earned_less_retainage_cents, line7_less_previous_cents, line8_current_payment_due_cents, line9_balance_to_finish_cents, submitted_at, certified_at, certified_by, paid_at
+draw_line_items — id, draw_id, division_id, col_c_scheduled_value_cents, col_d_from_previous_cents, col_e_this_period_cents, col_f_materials_stored_cents, col_g_completed_stored_cents, col_g_percent_bps, col_h_balance_cents, col_i_retainage_cents
+invoice_backup — id, draw_id, transaction_id, g703_division_id, description, commentary, amount_cents, retainage_cents
+audit_log — id, entity_type, entity_id, action, before_json, after_json, user_id, at
+9. Import Flow (Excel Bootstrap)
+The system must ingest CFR_v31.xlsx and Draw_17.xlsx shape to let existing users migrate.
+CFR import
+Parse Summary sheet rows 5–22: division number, name, scheduled value → creates divisions.
+Parse Bid sheet: group by division (indented rows under each SUB TOTAL) → creates bid_line_items with budgets.
+Parse Detail sheet: each row → creates a transaction (date, vendor, amount, mapped to division by coding column).
+Import is a staging step: user reviews parsed data before commit.
+Draw import
+Parse G702: extract contract sum, previous certificates, totals → creates a draw record.
+Parse G703 rows 1–18: each row → a draw_line_item.
+Parse Boulder Invoice sheet: each row → an invoice_backup entry, matched to transactions by description+amount where possible.
+Sign convention normalization: reference file has retainage as negative in CFR Summary (Column C) but positive in G703 (Column I). System stores as positive magnitude and applies sign at display time.
+10. UI Requirements
+10.1 Navigation
+After login, user lands on Project list (scoped to their org memberships). Clicking a project opens a project workspace with tabs:
+Overview: dashboard with contract sum, % complete, billed to date, remaining, overrun alerts, recent draws.
+CFR: division rollup table + bid line item drill-down + transaction list. Hidden for Owner role.
+Draws: list of draws by number/date/status. Clicking opens the Draw Detail view.
+Transactions: filterable list + import button.
+Change Orders: list + create.
+Team: project memberships and roles.
+Settings: retainage, divisions, contract details.
+10.2 Draw Detail View (implements the user's display rule)
+This is where the rule "Draw view shows both Draw and CFR" lives. Layout: left pane = G702 summary + G703 table + invoice backup; right pane (collapsible) = CFR budget-vs-actual per division aligned row-for-row with the G703 so the PM can see "am I billing within remaining budget for this division?" at a glance. For Owner role, the right pane is hidden entirely.
+10.3 CFR View
+Standalone cost view. Three sub-tabs: Summary (division rollup matching Summary sheet), Bid (line items matching Bid sheet), Detail (transactions matching Detail sheet). No billing context shown.
+11. Reports & Exports
+G702 PDF: pixel-accurate AIA form, printable.
+G703 PDF: continuation sheet, pixel-accurate.
+Invoice backup packet: cover + line items grouped by G703 line.
+CFR Summary PDF: internal format matching reference file's Summary sheet.
+CFR Bid PDF: division-by-division with bid line items.
+Variance Report: divisions and line items over budget, sorted by severity.
+Excel export: any view can be exported as .xlsx matching reference file shape (for users who still need spreadsheets).
+12. Validation & Edge Cases
+13. Business Rules (Canonical)
+Transactions are the source of truth for cost. Draws are the source of truth for billing. CFR is a view, not a table.
+Draws cannot modify transactions; transactions can be linked to draws but their monetary value is independent.
+% Physical Complete is manually entered per division per period. It is NOT derived from cost.
+Retainage is stored as positive magnitude. Display sign is contextual (withheld = negative on contractor's side, held = positive on owner's).
+Money: integer cents. Never float. Percentages: basis points (bps); 1000 = 10%, 10000 = 100%.
+All monetary fields that appear on a certified draw are immutable after certification (audit requirement).
+Every CFR dollar and every Draw dollar must trace to a transaction or a scheduled value; orphan dollars are rejected.
+14. Success Criteria
+A contractor can migrate an existing CFR + Draws Excel bundle into the system in < 30 minutes with no data loss.
+Generated G702/G703 PDFs are accepted by owners and lenders without format challenges.
+Reconciliation engine catches 100% of the issues present in the reference data (Flooring Install overrun, retainage sign inconsistency, rounding drift).
+Owner role never has a code path to CFR data (verified by security test).
+Draw creation time drops from days (current spreadsheet workflow) to under 1 hour.
+Zero formula errors in any exported Excel file.
+15. Phased Delivery
+Phase 1 — MVP (8–10 weeks)
+Auth + multi-tenancy (orgs, users, roles).
+Project CRUD; division and scheduled value setup.
+Transactions (manual entry + Excel import).
+CFR Summary view.
+Draw creation, G703 table editing, G702 calc, PDF export matching AIA.
+Reconciliation engine v1 (overrun + over-billed checks).
+Phase 2 — Production-ready (6–8 weeks)
+Bid line items + CFR Bid view.
+Invoice backup ingestion (Boulder Invoice shape).
+Change orders.
+Variable retainage per line.
+Architect certification workflow.
+Owner-facing read-only draw viewer.
+Phase 3 — Scale
+API for accounting tool sync (QuickBooks, Sage).
+Subcontractor invoice portal.
+Lien waiver generation.
+AI-assisted invoice classification to division.
+Mobile field app for % complete entry.
+16. Open Questions for Stakeholder
+Which AIA form version is authoritative — G702/G703 1992 (used in reference file) or 2017 edition?
+Retainage rules: fixed % across project, stepped (10% to 50% completion, then 5%), or fully variable per line?
+Is materials-stored retainage typically withheld at the same rate as work-completed retainage for your contractors?
+For the Owner role, should backup invoices (Boulder sheet) be visible, or only the G702/G703 summary?
+Integration priority: which accounting tool do target contractors use most (QuickBooks, Sage, Foundation, Viewpoint)?
+Pricing model: per project, per user, per contractor org, or per contract value?
+17. Summary of Changes From Earlier Drafts
+This PRD supersedes two earlier drafts. Key corrections:
+ 
+— End of Document —

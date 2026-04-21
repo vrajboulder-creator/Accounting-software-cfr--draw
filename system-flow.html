@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Boulder CFR & Draw — System Flow</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; margin: 0; padding: 24px; background: #fafafa; color: #171717; }
+  h1 { font-size: 22px; margin: 0 0 4px 0; }
+  p.sub { color: #737373; font-size: 13px; margin: 0 0 20px 0; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; margin-bottom: 16px; }
+  .legend span { padding: 3px 9px; border-radius: 4px; font-weight: 500; }
+  .controls { margin-bottom: 12px; }
+  button { padding: 6px 12px; border: 1px solid #d4d4d4; background: white; border-radius: 4px; cursor: pointer; font-size: 12px; margin-right: 6px; }
+  button:hover { background: #f5f5f5; }
+  #diagram { background: white; border: 1px solid #e5e5e5; border-radius: 8px; padding: 16px; overflow: auto; }
+</style>
+</head>
+<body>
+<h1>Boulder CFR & Draw Management — System Flow</h1>
+<p class="sub">Save as PNG / SVG with the buttons below. Data as of current seed (118 bid items, 1872 txs, 17 draws, 306 G703 lines, 274 credits, 1711 invoice backups).</p>
+
+<div class="legend">
+  <span style="background:#fef3c7;color:#78350f;">Roles</span>
+  <span style="background:#dbeafe;color:#1e3a8a;">DB tables</span>
+  <span style="background:#dcfce7;color:#14532d;">Processes</span>
+  <span style="background:#fce7f3;color:#831843;">UI tabs</span>
+  <span style="background:#e0e7ff;color:#312e81;">AIA G702 formulas</span>
+  <span style="background:#fed7aa;color:#7c2d12;">Draw states</span>
+</div>
+
+<div class="controls">
+  <button onclick="downloadSVG()">⬇ Download SVG</button>
+  <button onclick="downloadPNG()">⬇ Download PNG</button>
+</div>
+
+<div id="diagram" class="mermaid">
+flowchart TB
+
+  subgraph ROLES["👥 ROLES (6)"]
+    direction LR
+    R1[contractor_admin]
+    R2[contractor_pm]
+    R3[contractor_viewer]
+    R4[owner]
+    R5[architect]
+    R6[accountant]
+  end
+
+  subgraph INPUTS["📥 DATA INPUTS"]
+    direction TB
+    I1[Invoices / Receipts]
+    I2[Payroll]
+    I3[Expenses]
+    I4[Change Orders]
+    I5[Owner Draw Payments]
+  end
+
+  subgraph DB["🗄️ DATABASE (Supabase Postgres)"]
+    direction TB
+
+    subgraph DB_SETUP["Setup"]
+      T1[(organizations)]
+      T2[(users)]
+      T3[(projects)]
+      T4[(divisions · 18)]
+      T5[(bid_line_items · 118)]
+      T6[(project_memberships)]
+    end
+
+    subgraph DB_TX["Transactions"]
+      T7[(transactions · 1872 debits)]
+      T8[(received_funds · 274 credits)]
+      T9[(change_orders)]
+    end
+
+    subgraph DB_DRAW["Draw cycle"]
+      T10[(draws · 17)]
+      T11[(draw_line_items · 306 G703)]
+      T12[(invoice_backup · 1711)]
+    end
+
+    T13[(audit_log)]
+  end
+
+  subgraph PROC["⚙️ PROCESSES"]
+    direction TB
+    P1[Log transaction]
+    P2[Create Draw N]
+    P3[Enter per-division % complete]
+    P4[Compute G702 9-line summary]
+    P5[Submit Draw]
+    P6[Architect certifies]
+    P7[Owner pays → received_funds entry]
+    P8[Reconcile: Cash balance = Spend − Retainage − Received]
+    P9[Overrun detection]
+  end
+
+  subgraph UI["🖥️ UI TABS"]
+    direction TB
+    U1[Overview<br/>Stats + Draw history + Overruns]
+    U2[CFR — Summary<br/>18 divisions + Cash balance]
+    U3[CFR — Bid Items<br/>118 line items, overrun flags]
+    U4[CFR — Transactions<br/>1872 debits paginated]
+    U5[Draws list<br/>All 17 AIA pay apps]
+    U6[Draw Detail<br/>G702 + G703 + backup]
+    U7[Change Orders]
+    U8[Team / Settings]
+  end
+
+  R1 --> U1 & U2 & U3 & U4 & U5 & U6 & U7 & U8
+  R2 --> U1 & U2 & U3 & U4 & U5 & U6 & U7
+  R3 --> U1 & U5
+  R4 --> U1 & U5 & U6
+  R5 --> U1 & U5 & U6 & U7
+  R6 --> U1 & U2 & U3 & U4
+
+  I1 & I2 & I3 --> P1
+  P1 --> T7
+  I4 --> T9
+  I5 --> P7
+  P7 --> T8
+
+  subgraph DRAW_STATE["🔄 Draw state machine"]
+    direction LR
+    S1(draft) --> S2(submitted)
+    S2 --> S3(certified)
+    S3 --> S4(paid)
+    S1 --> S5(voided)
+    S2 --> S5
+  end
+
+  P2 --> S1
+  P3 --> T11
+  P4 --> T10
+  P5 --> S2
+  P6 --> S3
+  P7 --> S4
+
+  T7 --> |sum per division| CFR_SPEND[Gross spend]
+  T8 --> |sum per division| CFR_RECV[Net received]
+  T11 --> |col I per draw| RETAIN[Retainage held]
+
+  CFR_SPEND & CFR_RECV & RETAIN --> P8
+  P8 --> U2
+
+  T5 --> |budget vs tx sum| P9
+  P9 --> U1 & U3
+
+  T3 & T4 & T10 --> U1
+  T4 & T5 & T7 & T8 --> U2
+  T5 & T7 --> U3
+  T7 --> U4
+  T10 --> U5
+  T10 & T11 & T12 --> U6
+  T9 --> U7
+  T6 & T2 & T1 --> U8
+
+  subgraph AIA["📋 G702 computation"]
+    direction TB
+    F1["Line 3 = Line 1 + Net COs"]
+    F2["Line 4 = Σ G703 col G"]
+    F3["Line 5 = Σ G703 col I"]
+    F4["Line 6 = Line 4 − Line 5"]
+    F5["Line 7 = prior draw Line 6"]
+    F6["Line 8 = Line 6 − Line 7 → $ DUE"]
+    F7["Line 9 = Line 3 − Line 6"]
+    F1 --> F2 --> F3 --> F4 --> F5 --> F6 --> F7
+  end
+
+  T11 --> F2 & F3
+  T9 --> F1
+  F6 --> P7
+
+  P1 & P2 & P5 & P6 & P7 -.->|audit|T13
+
+  classDef roleBox fill:#fef3c7,stroke:#f59e0b,color:#78350f
+  classDef dbBox fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
+  classDef procBox fill:#dcfce7,stroke:#16a34a,color:#14532d
+  classDef uiBox fill:#fce7f3,stroke:#db2777,color:#831843
+  classDef aiaBox fill:#e0e7ff,stroke:#4f46e5,color:#312e81
+  classDef stateBox fill:#fed7aa,stroke:#ea580c,color:#7c2d12
+
+  class R1,R2,R3,R4,R5,R6 roleBox
+  class T1,T2,T3,T4,T5,T6,T7,T8,T9,T10,T11,T12,T13 dbBox
+  class P1,P2,P3,P4,P5,P6,P7,P8,P9 procBox
+  class U1,U2,U3,U4,U5,U6,U7,U8 uiBox
+  class F1,F2,F3,F4,F5,F6,F7 aiaBox
+  class S1,S2,S3,S4,S5 stateBox
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: 'default', flowchart: { curve: 'basis', padding: 20 }, themeVariables: { fontSize: '13px' } });
+
+  function downloadSVG() {
+    const svg = document.querySelector('#diagram svg');
+    if (!svg) return alert('Diagram not rendered yet.');
+    const clone = svg.cloneNode(true);
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    const src = new XMLSerializer().serializeToString(clone);
+    const blob = new Blob([src], { type: 'image/svg+xml' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'boulder-cfr-flow.svg';
+    a.click();
+  }
+
+  function downloadPNG() {
+    const svg = document.querySelector('#diagram svg');
+    if (!svg) return alert('Diagram not rendered yet.');
+    const src = new XMLSerializer().serializeToString(svg);
+    const img = new Image();
+    const bbox = svg.getBoundingClientRect();
+    const scale = 2;
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = bbox.width * scale;
+      canvas.height = bbox.height * scale;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.scale(scale, scale);
+      ctx.drawImage(img, 0, 0);
+      canvas.toBlob((blob) => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'boulder-cfr-flow.png';
+        a.click();
+      });
+    };
+    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(src)));
+  }
+</script>
+</body>
+</html>

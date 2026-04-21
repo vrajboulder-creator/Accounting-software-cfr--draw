@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Boulder Construction — Simple Flow</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; margin: 0; padding: 24px; background: #fafafa; color: #171717; }
+  h1 { font-size: 22px; margin: 0 0 4px 0; }
+  p.sub { color: #737373; font-size: 13px; margin: 0 0 20px 0; }
+  .controls { margin-bottom: 12px; }
+  button { padding: 6px 12px; border: 1px solid #d4d4d4; background: white; border-radius: 4px; cursor: pointer; font-size: 12px; margin-right: 6px; }
+  button:hover { background: #f5f5f5; }
+  #diagram { background: white; border: 1px solid #e5e5e5; border-radius: 8px; padding: 20px; overflow: auto; }
+</style>
+</head>
+<body>
+<h1>How the Money Flows — Boulder Construction Project</h1>
+<p class="sub">Plain-English flow. Shows who does what, and how money moves from contractor spending to owner payments.</p>
+
+<div class="controls">
+  <button onclick="downloadSVG()">⬇ Download SVG</button>
+  <button onclick="downloadPNG()">⬇ Download PNG</button>
+</div>
+
+<div id="diagram" class="mermaid">
+flowchart TB
+
+  START([🏗️ Project starts<br/>Contractor signs contract with Owner])
+
+  subgraph DAILY["📅 EVERY DAY — Contractor tracks costs"]
+    direction TB
+    D1[Contractor buys materials<br/>pays workers, rents equipment]
+    D2[Each expense logged in system<br/>tagged to a division]
+    D3[Running total per division:<br/>how much spent vs. budget]
+  end
+
+  subgraph MONTHLY["📆 EVERY MONTH — Contractor bills the Owner"]
+    direction TB
+    M1[Contractor reviews work completed<br/>this month, per division]
+    M2[Creates 'Draw #N' — monthly invoice<br/>to Owner]
+    M3[System auto-calculates payment due:<br/>• Total work done to date<br/>• Minus 10% retainage held back<br/>• Minus what Owner already paid<br/>= Amount owed this month]
+    M4[Contractor submits Draw to Architect]
+  end
+
+  subgraph APPROVAL["✅ APPROVAL STEP — Architect reviews"]
+    direction TB
+    A1{Architect checks:<br/>Is the work really done?}
+    A2[Certifies the Draw<br/>seal of approval]
+    A3[Sends to Owner for payment]
+  end
+
+  subgraph PAYMENT["💰 PAYMENT — Owner pays Contractor"]
+    direction TB
+    PY1[Owner wires money to Contractor]
+    PY2[System records payment received<br/>per division]
+    PY3[Draw marked as 'paid']
+  end
+
+  subgraph REPORT["📊 CONTRACTOR'S INTERNAL VIEW — CFR"]
+    direction TB
+    C1[Real costs spent]
+    C2[vs. Money received from Owner]
+    C3[= Profit or loss per division]
+    C4[Red flags on divisions over budget]
+  end
+
+  subgraph FINISH["🏁 PROJECT COMPLETES"]
+    direction TB
+    END1[Final draw pays out all retainage held]
+    END2[Balance goes to $0]
+    END3[Owner signs off — project closed]
+  end
+
+  START --> DAILY
+  DAILY --> MONTHLY
+  MONTHLY --> APPROVAL
+  APPROVAL --> A1
+  A1 -->|Yes, work is done| A2
+  A1 -->|No, issues found| M1
+  A2 --> A3
+  A3 --> PAYMENT
+  PAYMENT --> REPORT
+  REPORT --> MONTHLY
+  REPORT --> FINISH
+
+  D1 --> D2 --> D3
+  M1 --> M2 --> M3 --> M4
+  PY1 --> PY2 --> PY3
+  C1 --> C2 --> C3 --> C4
+  END1 --> END2 --> END3
+
+  classDef startStyle fill:#fef3c7,stroke:#f59e0b,color:#78350f,font-weight:bold
+  classDef dailyStyle fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
+  classDef monthlyStyle fill:#dcfce7,stroke:#16a34a,color:#14532d
+  classDef approvalStyle fill:#e0e7ff,stroke:#4f46e5,color:#312e81
+  classDef paymentStyle fill:#fce7f3,stroke:#db2777,color:#831843
+  classDef reportStyle fill:#fed7aa,stroke:#ea580c,color:#7c2d12
+  classDef finishStyle fill:#dcfce7,stroke:#16a34a,color:#14532d,font-weight:bold
+
+  class START startStyle
+  class D1,D2,D3 dailyStyle
+  class M1,M2,M3,M4 monthlyStyle
+  class A1,A2,A3 approvalStyle
+  class PY1,PY2,PY3 paymentStyle
+  class C1,C2,C3,C4 reportStyle
+  class END1,END2,END3 finishStyle
+</div>
+
+<h2 style="margin-top:32px;font-size:16px;">The 4 Players</h2>
+<table style="border-collapse:collapse;margin-top:8px;font-size:13px;">
+  <tr style="background:#f5f5f5;">
+    <th style="text-align:left;padding:8px 12px;border:1px solid #e5e5e5;">Role</th>
+    <th style="text-align:left;padding:8px 12px;border:1px solid #e5e5e5;">What they do</th>
+  </tr>
+  <tr>
+    <td style="padding:8px 12px;border:1px solid #e5e5e5;"><b>Contractor</b> (Boulder)</td>
+    <td style="padding:8px 12px;border:1px solid #e5e5e5;">Buys materials, pays workers, bills the Owner monthly. Tracks profit/loss internally.</td>
+  </tr>
+  <tr>
+    <td style="padding:8px 12px;border:1px solid #e5e5e5;"><b>Owner</b> (Prevail)</td>
+    <td style="padding:8px 12px;border:1px solid #e5e5e5;">Hired the Contractor. Pays monthly based on % of work done. Holds back 10% retainage until project ends.</td>
+  </tr>
+  <tr>
+    <td style="padding:8px 12px;border:1px solid #e5e5e5;"><b>Architect</b> (Maust)</td>
+    <td style="padding:8px 12px;border:1px solid #e5e5e5;">Independent check. Confirms work is actually done before Owner pays.</td>
+  </tr>
+  <tr>
+    <td style="padding:8px 12px;border:1px solid #e5e5e5;"><b>Accountant</b> (Summit)</td>
+    <td style="padding:8px 12px;border:1px solid #e5e5e5;">Helps Contractor reconcile books — makes sure money received matches money spent.</td>
+  </tr>
+</table>
+
+<h2 style="margin-top:28px;font-size:16px;">Two Key Documents</h2>
+<ul style="font-size:13px;line-height:1.7;">
+  <li><b>Draw</b> (external) — Monthly invoice the Contractor sends to the Owner. Says: "work is 85% done, you owe us $723K this month."</li>
+  <li><b>CFR — Cost-to-Finish Report</b> (internal) — Contractor's private view. Says: "we spent $2.1M, Owner paid us $1.9M, we're $200K down on Division 8."</li>
+</ul>
+
+<h2 style="margin-top:28px;font-size:16px;">Who Sees What?</h2>
+
+<div id="access-diagram" class="mermaid" style="background:white;border:1px solid #e5e5e5;border-radius:8px;padding:20px;overflow:auto;margin-top:10px;">
+flowchart LR
+
+  C[👷 Contractor] -->|opens Draw| V1[sees Draw + CFR<br/>together]
+  C -->|opens CFR| V2[sees CFR only]
+
+  O[🏢 Owner] -->|opens Draw| V3[sees Draw only<br/>no CFR]
+  O -.->|opens CFR| V4[❌ BLOCKED]
+
+  AR[📐 Architect] -->|opens Draw| V5[sees Draw only<br/>to certify work]
+
+  AC[💼 Accountant] -->|opens CFR| V6[sees CFR only<br/>for reconciling books]
+
+  classDef contractor fill:#dcfce7,stroke:#16a34a,color:#14532d,font-weight:bold
+  classDef owner fill:#fce7f3,stroke:#db2777,color:#831843,font-weight:bold
+  classDef architect fill:#e0e7ff,stroke:#4f46e5,color:#312e81,font-weight:bold
+  classDef accountant fill:#fef3c7,stroke:#f59e0b,color:#78350f,font-weight:bold
+  classDef view fill:#f5f5f5,stroke:#737373,color:#171717
+  classDef blocked fill:#fee2e2,stroke:#dc2626,color:#7f1d1d,font-weight:bold
+
+  class C contractor
+  class O owner
+  class AR architect
+  class AC accountant
+  class V1,V2,V3,V5,V6 view
+  class V4 blocked
+</div>
+
+<div style="background:#fef3c7;border:2px solid #f59e0b;border-radius:8px;padding:14px;margin-top:14px;font-size:13px;">
+  <b style="color:#78350f;">Simple rule:</b> When Contractor opens a Draw, they also see CFR on the side.
+  When Owner opens a Draw, they see only Draw — never CFR. This protects the Contractor's internal costs
+  and profit margin from being seen by the Owner.
+</div>
+
+<table style="border-collapse:collapse;margin-top:14px;font-size:13px;width:100%;">
+  <tr style="background:#f5f5f5;">
+    <th style="text-align:left;padding:8px 12px;border:1px solid #e5e5e5;">Role</th>
+    <th style="text-align:left;padding:8px 12px;border:1px solid #e5e5e5;">Opens Draw</th>
+    <th style="text-align:left;padding:8px 12px;border:1px solid #e5e5e5;">Opens CFR</th>
+  </tr>
+  <tr>
+    <td style="padding:8px 12px;border:1px solid #e5e5e5;"><b>Contractor</b></td>
+    <td style="padding:8px 12px;border:1px solid #e5e5e5;color:#16a34a;">✓ sees Draw + CFR</td>
+    <td style="padding:8px 12px;border:1px solid #e5e5e5;color:#16a34a;">✓ sees CFR only</td>
+  </tr>
+  <tr>
+    <td style="padding:8px 12px;border:1px solid #e5e5e5;"><b>Owner</b></td>
+    <td style="padding:8px 12px;border:1px solid #e5e5e5;color:#16a34a;">✓ sees Draw only</td>
+    <td style="padding:8px 12px;border:1px solid #e5e5e5;color:#dc2626;">✗ blocked</td>
+  </tr>
+  <tr>
+    <td style="padding:8px 12px;border:1px solid #e5e5e5;"><b>Architect</b></td>
+    <td style="padding:8px 12px;border:1px solid #e5e5e5;color:#16a34a;">✓ sees Draw only</td>
+    <td style="padding:8px 12px;border:1px solid #e5e5e5;color:#dc2626;">✗ no access</td>
+  </tr>
+  <tr>
+    <td style="padding:8px 12px;border:1px solid #e5e5e5;"><b>Accountant</b></td>
+    <td style="padding:8px 12px;border:1px solid #e5e5e5;color:#16a34a;">✓ sees Draw</td>
+    <td style="padding:8px 12px;border:1px solid #e5e5e5;color:#16a34a;">✓ sees CFR</td>
+  </tr>
+</table>
+
+<h2 style="margin-top:28px;font-size:16px;">Why retainage?</h2>
+<p style="font-size:13px;">Owner holds back 10% of every payment until the project is fully done. This is their safety net — if the Contractor walks away or work is bad, Owner has money to fix it. Once Contractor finishes, retainage gets released as the final draw.</p>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: 'default', flowchart: { curve: 'basis', padding: 20 }, themeVariables: { fontSize: '14px' } });
+
+  function downloadSVG() {
+    const svg = document.querySelector('#diagram svg');
+    if (!svg) return alert('Diagram not rendered yet.');
+    const clone = svg.cloneNode(true);
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    const src = new XMLSerializer().serializeToString(clone);
+    const blob = new Blob([src], { type: 'image/svg+xml' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'boulder-simple-flow.svg';
+    a.click();
+  }
+
+  function downloadPNG() {
+    const svg = document.querySelector('#diagram svg');
+    if (!svg) return alert('Diagram not rendered yet.');
+    const src = new XMLSerializer().serializeToString(svg);
+    const img = new Image();
+    const bbox = svg.getBoundingClientRect();
+    const scale = 2;
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = bbox.width * scale;
+      canvas.height = bbox.height * scale;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.scale(scale, scale);
+      ctx.drawImage(img, 0, 0);
+      canvas.toBlob((blob) => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'boulder-simple-flow.png';
+        a.click();
+      });
+    };
+    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(src)));
+  }
+</script>
+</body>
+</html>

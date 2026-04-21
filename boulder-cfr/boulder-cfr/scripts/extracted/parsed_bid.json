@@ -1,0 +1,1064 @@
+[
+  {
+    "divNum": 1,
+    "divName": "GENERAL CONDITIONS",
+    "name": "Mobilization (erosion control, storm water reports)",
+    "coding": "Mobilization",
+    "budgetCents": 2200000,
+    "spendCents": 2200000,
+    "sortOrder": 1
+  },
+  {
+    "divNum": 1,
+    "divName": "GENERAL CONDITIONS",
+    "name": "Testing and Inspection Services",
+    "coding": "Testing and Inspection Services",
+    "budgetCents": 1100000,
+    "spendCents": 1329555,
+    "sortOrder": 2
+  },
+  {
+    "divNum": 1,
+    "divName": "GENERAL CONDITIONS",
+    "name": "Layout/Engineering",
+    "coding": "Layout/Engineering",
+    "budgetCents": 1000000,
+    "spendCents": 0,
+    "sortOrder": 3
+  },
+  {
+    "divNum": 1,
+    "divName": "GENERAL CONDITIONS",
+    "name": "Final Cleanup",
+    "coding": "Final Cleanup",
+    "budgetCents": 2900000,
+    "spendCents": 0,
+    "sortOrder": 4
+  },
+  {
+    "divNum": 1,
+    "divName": "GENERAL CONDITIONS",
+    "name": "Temporary Fencing",
+    "coding": "Temporary Fencing",
+    "budgetCents": 1000000,
+    "spendCents": 659153,
+    "sortOrder": 5
+  },
+  {
+    "divNum": 1,
+    "divName": "GENERAL CONDITIONS",
+    "name": "Wash Exterior Windows",
+    "coding": "Wash Exterior Windows",
+    "budgetCents": 1000000,
+    "spendCents": 0,
+    "sortOrder": 6
+  },
+  {
+    "divNum": 1,
+    "divName": "GENERAL CONDITIONS",
+    "name": "Waste Removal Services",
+    "coding": "Waste Removal Services",
+    "budgetCents": 5300000,
+    "spendCents": 6095833,
+    "sortOrder": 7
+  },
+  {
+    "divNum": 1,
+    "divName": "GENERAL CONDITIONS",
+    "name": "Safety",
+    "coding": "Safety",
+    "budgetCents": 2500000,
+    "spendCents": 2412955,
+    "sortOrder": 8
+  },
+  {
+    "divNum": 1,
+    "divName": "GENERAL CONDITIONS",
+    "name": "Jobsite Material Expenses",
+    "coding": "Jobsite Material Expenses",
+    "budgetCents": 3900000,
+    "spendCents": 4605508,
+    "sortOrder": 9
+  },
+  {
+    "divNum": 1,
+    "divName": "GENERAL CONDITIONS",
+    "name": "Rough Hardware",
+    "coding": "Rough Hardware",
+    "budgetCents": 0,
+    "spendCents": 0,
+    "sortOrder": 10
+  },
+  {
+    "divNum": 1,
+    "divName": "GENERAL CONDITIONS",
+    "name": "Jobsite Office Rental",
+    "coding": "Jobsite Office Rental",
+    "budgetCents": 3000000,
+    "spendCents": 3662295,
+    "sortOrder": 11
+  },
+  {
+    "divNum": 1,
+    "divName": "GENERAL CONDITIONS",
+    "name": "Temporary Toilets",
+    "coding": "Temporary Toilets",
+    "budgetCents": 0,
+    "spendCents": 0,
+    "sortOrder": 12
+  },
+  {
+    "divNum": 1,
+    "divName": "GENERAL CONDITIONS",
+    "name": "Temporary Electric",
+    "coding": "Temporary Electric",
+    "budgetCents": 0,
+    "spendCents": 0,
+    "sortOrder": 13
+  },
+  {
+    "divNum": 1,
+    "divName": "GENERAL CONDITIONS",
+    "name": "Temporary Telephone/Internet",
+    "coding": "Temporary Telephone/Internet",
+    "budgetCents": 0,
+    "spendCents": 0,
+    "sortOrder": 14
+  },
+  {
+    "divNum": 1,
+    "divName": "GENERAL CONDITIONS",
+    "name": "Temporary Water",
+    "coding": "Temporary Water",
+    "budgetCents": 0,
+    "spendCents": 0,
+    "sortOrder": 15
+  },
+  {
+    "divNum": 1,
+    "divName": "GENERAL CONDITIONS",
+    "name": "Superintendent",
+    "coding": "Superintendent",
+    "budgetCents": 15900000,
+    "spendCents": 18250000,
+    "sortOrder": 16
+  },
+  {
+    "divNum": 1,
+    "divName": "GENERAL CONDITIONS",
+    "name": "Per diem",
+    "coding": "Per diem",
+    "budgetCents": 0,
+    "spendCents": 0,
+    "sortOrder": 17
+  },
+  {
+    "divNum": 1,
+    "divName": "GENERAL CONDITIONS",
+    "name": "General Superintendent/PM",
+    "coding": "General Superintendent/PM",
+    "budgetCents": 7000000,
+    "spendCents": 6611111,
+    "sortOrder": 18
+  },
+  {
+    "divNum": 1,
+    "divName": "GENERAL CONDITIONS",
+    "name": "Jobsite Labor",
+    "coding": "Jobsite Labor",
+    "budgetCents": 5000000,
+    "spendCents": 4237935,
+    "sortOrder": 19
+  },
+  {
+    "divNum": 1,
+    "divName": "GENERAL CONDITIONS",
+    "name": "Carpenter",
+    "coding": "Carpenter",
+    "budgetCents": 0,
+    "spendCents": 0,
+    "sortOrder": 20
+  },
+  {
+    "divNum": 1,
+    "divName": "GENERAL CONDITIONS",
+    "name": "Gas/Oil/Travel",
+    "coding": "Gas/Oil/Travel",
+    "budgetCents": 2500000,
+    "spendCents": 1574093,
+    "sortOrder": 21
+  },
+  {
+    "divNum": 1,
+    "divName": "GENERAL CONDITIONS",
+    "name": "Container Storage Rental",
+    "coding": "Container Storage Rental",
+    "budgetCents": 2900000,
+    "spendCents": 4164740,
+    "sortOrder": 22
+  },
+  {
+    "divNum": 1,
+    "divName": "GENERAL CONDITIONS",
+    "name": "Plan Reproduction/Postage",
+    "coding": "Plan Reproduction/Postage",
+    "budgetCents": 1300000,
+    "spendCents": 1032808,
+    "sortOrder": 23
+  },
+  {
+    "divNum": 1,
+    "divName": "GENERAL CONDITIONS",
+    "name": "Job Accounting /Administration",
+    "coding": "Job Accounting/Administration",
+    "budgetCents": 6500000,
+    "spendCents": 6138889,
+    "sortOrder": 24
+  },
+  {
+    "divNum": 2,
+    "divName": "SITEWORK",
+    "name": "Landscaping and Irrigation (Allowance)",
+    "coding": "Landscaping and Irrigation",
+    "budgetCents": 10000000,
+    "spendCents": 10890506,
+    "sortOrder": 1
+  },
+  {
+    "divNum": 2,
+    "divName": "SITEWORK",
+    "name": "Earthwork (Allowance)",
+    "coding": "Earthwork",
+    "budgetCents": 30000000,
+    "spendCents": 27683478,
+    "sortOrder": 2
+  },
+  {
+    "divNum": 2,
+    "divName": "SITEWORK",
+    "name": "Equipment Rental",
+    "coding": "Equipment Rental",
+    "budgetCents": 16000000,
+    "spendCents": 16266036,
+    "sortOrder": 3
+  },
+  {
+    "divNum": 2,
+    "divName": "SITEWORK",
+    "name": "SWPPP/Erosion control",
+    "coding": "SWPPP/Erosion control",
+    "budgetCents": 0,
+    "spendCents": 0,
+    "sortOrder": 4
+  },
+  {
+    "divNum": 2,
+    "divName": "SITEWORK",
+    "name": "Site Utilities/Storm Drainage",
+    "coding": "Utilities",
+    "budgetCents": 31500000,
+    "spendCents": 33759981,
+    "sortOrder": 5
+  },
+  {
+    "divNum": 2,
+    "divName": "SITEWORK",
+    "name": "Patio Storm Drainage",
+    "coding": "Patio Storm Drainage",
+    "budgetCents": 0,
+    "spendCents": 0,
+    "sortOrder": 6
+  },
+  {
+    "divNum": 2,
+    "divName": "SITEWORK",
+    "name": "Spoil Removal",
+    "coding": "Spoil Removal",
+    "budgetCents": 0,
+    "spendCents": 0,
+    "sortOrder": 7
+  },
+  {
+    "divNum": 2,
+    "divName": "SITEWORK",
+    "name": "Striping",
+    "coding": "Striping",
+    "budgetCents": 1100000,
+    "spendCents": 0,
+    "sortOrder": 8
+  },
+  {
+    "divNum": 3,
+    "divName": "CONCRETE",
+    "name": "Site and Building Concrete",
+    "coding": "Concrete",
+    "budgetCents": 97500000,
+    "spendCents": 96293451,
+    "sortOrder": 1
+  },
+  {
+    "divNum": 3,
+    "divName": "CONCRETE",
+    "name": "Pool Deck Concrete (broom finish, Pool Deck Drains, Included)",
+    "coding": "Pool Deck Concrete (broom finish, Pool Deck Drains, Included)",
+    "budgetCents": 0,
+    "spendCents": 0,
+    "sortOrder": 2
+  },
+  {
+    "divNum": 3,
+    "divName": "CONCRETE",
+    "name": "Patio Stamp Concrete",
+    "coding": "Patio Stamp Concrete",
+    "budgetCents": 0,
+    "spendCents": 0,
+    "sortOrder": 3
+  },
+  {
+    "divNum": 3,
+    "divName": "CONCRETE",
+    "name": "Termite Control",
+    "coding": "Termite Control",
+    "budgetCents": 1300000,
+    "spendCents": 541250,
+    "sortOrder": 4
+  },
+  {
+    "divNum": 3,
+    "divName": "CONCRETE",
+    "name": "Gypcrete",
+    "coding": "Gypcrete",
+    "budgetCents": 8600000,
+    "spendCents": 6900000,
+    "sortOrder": 5
+  },
+  {
+    "divNum": 4,
+    "divName": "MASONRY",
+    "name": "CMU (Dumpster)",
+    "coding": "CMU",
+    "budgetCents": 900000,
+    "spendCents": 896451,
+    "sortOrder": 1
+  },
+  {
+    "divNum": 5,
+    "divName": "METALS",
+    "name": "Structural Steel Material (Allowance)",
+    "coding": "Structural Steel Material",
+    "budgetCents": 10000000,
+    "spendCents": 9688891,
+    "sortOrder": 1
+  },
+  {
+    "divNum": 5,
+    "divName": "METALS",
+    "name": "Sales tax",
+    "coding": "Sales tax",
+    "budgetCents": 0,
+    "spendCents": 0,
+    "sortOrder": 2
+  },
+  {
+    "divNum": 5,
+    "divName": "METALS",
+    "name": "Steel Erection",
+    "coding": "Steel Erection",
+    "budgetCents": 0,
+    "spendCents": 0,
+    "sortOrder": 3
+  },
+  {
+    "divNum": 5,
+    "divName": "METALS",
+    "name": "Stair Handrail Install",
+    "coding": "Stair Handrail Install",
+    "budgetCents": 0,
+    "spendCents": 0,
+    "sortOrder": 4
+  },
+  {
+    "divNum": 5,
+    "divName": "METALS",
+    "name": "Misc. Steel",
+    "coding": "Misc. Steel",
+    "budgetCents": 4500000,
+    "spendCents": 374800,
+    "sortOrder": 5
+  },
+  {
+    "divNum": 5,
+    "divName": "METALS",
+    "name": "Fencing",
+    "coding": "Fencing",
+    "budgetCents": 0,
+    "spendCents": 0,
+    "sortOrder": 6
+  },
+  {
+    "divNum": 5,
+    "divName": "METALS",
+    "name": "Access Structures",
+    "coding": "Access Structures",
+    "budgetCents": 1000000,
+    "spendCents": 0,
+    "sortOrder": 7
+  },
+  {
+    "divNum": 6,
+    "divName": "WOOD, PLASTICS AND COMPOSITES",
+    "name": "Framing Material (Allowance)",
+    "coding": "Framing Material",
+    "budgetCents": 51400000,
+    "spendCents": 52404560,
+    "sortOrder": 1
+  },
+  {
+    "divNum": 6,
+    "divName": "WOOD, PLASTICS AND COMPOSITES",
+    "name": "Framing Labor - (Allowance)",
+    "coding": "Framing Labor",
+    "budgetCents": 36000000,
+    "spendCents": 44279823,
+    "sortOrder": 2
+  },
+  {
+    "divNum": 6,
+    "divName": "WOOD, PLASTICS AND COMPOSITES",
+    "name": "Simpson Hardware",
+    "coding": "Simpson Hardware",
+    "budgetCents": 2400000,
+    "spendCents": 0,
+    "sortOrder": 3
+  },
+  {
+    "divNum": 6,
+    "divName": "WOOD, PLASTICS AND COMPOSITES",
+    "name": "Trusses (Allowance)",
+    "coding": "Trusses",
+    "budgetCents": 25300000,
+    "spendCents": 23579660,
+    "sortOrder": 4
+  },
+  {
+    "divNum": 6,
+    "divName": "WOOD, PLASTICS AND COMPOSITES",
+    "name": "Public Area Millwork Material",
+    "coding": "Public Area Millwork Material",
+    "budgetCents": 15000000,
+    "spendCents": 9835957,
+    "sortOrder": 5
+  },
+  {
+    "divNum": 6,
+    "divName": "WOOD, PLASTICS AND COMPOSITES",
+    "name": "BOH Shelving - Included in Millwork. ($5,500.00)",
+    "coding": "BOH Shelving - Included in Millwork. ($5,500.00)",
+    "budgetCents": 0,
+    "spendCents": 0,
+    "sortOrder": 6
+  },
+  {
+    "divNum": 7,
+    "divName": "THERMAL AND MOISTURE PROTECTION",
+    "name": "Waterproofing/Joint Sealants",
+    "coding": "Waterproofing/Joint Sealants",
+    "budgetCents": 0,
+    "spendCents": 0,
+    "sortOrder": 1
+  },
+  {
+    "divNum": 7,
+    "divName": "THERMAL AND MOISTURE PROTECTION",
+    "name": "Steel Fireproofing / Fire Caulking",
+    "coding": "Steel Fireproofing/Fire Caulking",
+    "budgetCents": 2200000,
+    "spendCents": 0,
+    "sortOrder": 2
+  },
+  {
+    "divNum": 7,
+    "divName": "THERMAL AND MOISTURE PROTECTION",
+    "name": "Roofing",
+    "coding": "Roofing",
+    "budgetCents": 23400000,
+    "spendCents": 29710000,
+    "sortOrder": 3
+  },
+  {
+    "divNum": 7,
+    "divName": "THERMAL AND MOISTURE PROTECTION",
+    "name": "EFIS/Stone (Allowance)",
+    "coding": "EFIS/Stone",
+    "budgetCents": 58000000,
+    "spendCents": 58423340,
+    "sortOrder": 4
+  },
+  {
+    "divNum": 7,
+    "divName": "THERMAL AND MOISTURE PROTECTION",
+    "name": "Building Insulation",
+    "coding": "Building Insulation",
+    "budgetCents": 17000000,
+    "spendCents": 11309700,
+    "sortOrder": 5
+  },
+  {
+    "divNum": 8,
+    "divName": "OPENINGS",
+    "name": "Doors and Hardware",
+    "coding": "Doors and Hardware",
+    "budgetCents": 30000000,
+    "spendCents": 23507959,
+    "sortOrder": 1
+  },
+  {
+    "divNum": 8,
+    "divName": "OPENINGS",
+    "name": "Hollow Metal Doors/Frames/Wood Doors/ Hardware -",
+    "coding": "Hollow Doors Hardware",
+    "budgetCents": 7500000,
+    "spendCents": 0,
+    "sortOrder": 2
+  },
+  {
+    "divNum": 8,
+    "divName": "OPENINGS",
+    "name": "Sales Tax -",
+    "coding": "Sales Tax -",
+    "budgetCents": 0,
+    "spendCents": 0,
+    "sortOrder": 3
+  },
+  {
+    "divNum": 8,
+    "divName": "OPENINGS",
+    "name": "Electronic Locksets -   Onity",
+    "coding": "Electronic Locksets",
+    "budgetCents": 8200000,
+    "spendCents": 5896768,
+    "sortOrder": 4
+  },
+  {
+    "divNum": 8,
+    "divName": "OPENINGS",
+    "name": "Automatic Sliding Doors",
+    "coding": "Automatic Sliding Doors",
+    "budgetCents": 14900000,
+    "spendCents": 0,
+    "sortOrder": 5
+  },
+  {
+    "divNum": 8,
+    "divName": "OPENINGS",
+    "name": "Aluminum Storefront and Entrances",
+    "coding": "Aluminum Storefront and Entrances",
+    "budgetCents": 0,
+    "spendCents": 0,
+    "sortOrder": 6
+  },
+  {
+    "divNum": 8,
+    "divName": "OPENINGS",
+    "name": "Guest room windows (with flashing)",
+    "coding": "Guest Room Windows",
+    "budgetCents": 17400000,
+    "spendCents": 28526661,
+    "sortOrder": 7
+  },
+  {
+    "divNum": 8,
+    "divName": "OPENINGS",
+    "name": "Sales tax - Integrity to pay:",
+    "coding": "Sales tax - Integrity to pay:",
+    "budgetCents": 0,
+    "spendCents": 0,
+    "sortOrder": 8
+  },
+  {
+    "divNum": 8,
+    "divName": "OPENINGS",
+    "name": "Metal Flashing",
+    "coding": "Metal Flashing",
+    "budgetCents": 2500000,
+    "spendCents": 10573612,
+    "sortOrder": 9
+  },
+  {
+    "divNum": 9,
+    "divName": "FINISHES",
+    "name": "Lay-in Ceiling's Materials",
+    "coding": "Lay-in Ceiling's Materials",
+    "budgetCents": 8000000,
+    "spendCents": 7015450,
+    "sortOrder": 1
+  },
+  {
+    "divNum": 9,
+    "divName": "FINISHES",
+    "name": "Lay-in ceiling Install",
+    "coding": "Lay-in ceiling Install",
+    "budgetCents": 0,
+    "spendCents": 0,
+    "sortOrder": 2
+  },
+  {
+    "divNum": 9,
+    "divName": "FINISHES",
+    "name": "Drywall, RC channel/Soundboard, etc., Materials (Allowance)",
+    "coding": "Drywall Material",
+    "budgetCents": 29300000,
+    "spendCents": 26258186,
+    "sortOrder": 3
+  },
+  {
+    "divNum": 9,
+    "divName": "FINISHES",
+    "name": "Drywall hanging and finishing Labor (Allowance)",
+    "coding": "Drywall Labor",
+    "budgetCents": 20400000,
+    "spendCents": 12420000,
+    "sortOrder": 4
+  },
+  {
+    "divNum": 9,
+    "divName": "FINISHES",
+    "name": "Furr downs -",
+    "coding": "Furr downs -",
+    "budgetCents": 0,
+    "spendCents": 0,
+    "sortOrder": 5
+  },
+  {
+    "divNum": 9,
+    "divName": "FINISHES",
+    "name": "Painting",
+    "coding": "Painting",
+    "budgetCents": 15900000,
+    "spendCents": 14674058,
+    "sortOrder": 6
+  },
+  {
+    "divNum": 9,
+    "divName": "FINISHES",
+    "name": "VWC Install",
+    "coding": "VMC Install",
+    "budgetCents": 7000000,
+    "spendCents": 7500000,
+    "sortOrder": 7
+  },
+  {
+    "divNum": 9,
+    "divName": "FINISHES",
+    "name": "Floor Skim",
+    "coding": "Floor Skim",
+    "budgetCents": 0,
+    "spendCents": 0,
+    "sortOrder": 8
+  },
+  {
+    "divNum": 9,
+    "divName": "FINISHES",
+    "name": "Flooring Materials- Carpet/Pad/LVT/Base/Glue (Allowance)",
+    "coding": "Flooring Material",
+    "budgetCents": 12800000,
+    "spendCents": 4896263,
+    "sortOrder": 9
+  },
+  {
+    "divNum": 9,
+    "divName": "FINISHES",
+    "name": "Flooring install",
+    "coding": "Flooring Install",
+    "budgetCents": 10600000,
+    "spendCents": 22611100,
+    "sortOrder": 10
+  },
+  {
+    "divNum": 9,
+    "divName": "FINISHES",
+    "name": "Transition/Stair Trim",
+    "coding": "Transition/Stair Trim",
+    "budgetCents": 0,
+    "spendCents": 0,
+    "sortOrder": 11
+  },
+  {
+    "divNum": 9,
+    "divName": "FINISHES",
+    "name": "Model Room (Change Order)",
+    "coding": "Model Room",
+    "budgetCents": 0,
+    "spendCents": 1315000,
+    "sortOrder": 12
+  },
+  {
+    "divNum": 10,
+    "divName": "SPECIALTIES AND EQUIPMENT",
+    "name": "Fire Extinguishers & Cabinets Materials",
+    "coding": "Fire Extinguisher Material",
+    "budgetCents": 1100000,
+    "spendCents": 585997,
+    "sortOrder": 1
+  },
+  {
+    "divNum": 10,
+    "divName": "SPECIALTIES AND EQUIPMENT",
+    "name": "Toilet Accessories/Toilet Compartments Materials (Allowance)",
+    "coding": "Toilet Material",
+    "budgetCents": 6000000,
+    "spendCents": 6765852,
+    "sortOrder": 2
+  },
+  {
+    "divNum": 10,
+    "divName": "SPECIALTIES AND EQUIPMENT",
+    "name": "Corner Guard Materials",
+    "coding": "Corner Guard Materials",
+    "budgetCents": 0,
+    "spendCents": 0,
+    "sortOrder": 3
+  },
+  {
+    "divNum": 10,
+    "divName": "SPECIALTIES AND EQUIPMENT",
+    "name": "Guestroom appliances - owner provided",
+    "coding": "Guestroom appliances - owner provided",
+    "budgetCents": 0,
+    "spendCents": 0,
+    "sortOrder": 4
+  },
+  {
+    "divNum": 10,
+    "divName": "SPECIALTIES AND EQUIPMENT",
+    "name": "Kitchen Equipment (Allowance)",
+    "coding": "Kitchen Equipment",
+    "budgetCents": 15000000,
+    "spendCents": 15000000,
+    "sortOrder": 5
+  },
+  {
+    "divNum": 10,
+    "divName": "SPECIALTIES AND EQUIPMENT",
+    "name": "Glass Shower Panel Materials",
+    "coding": "Glass Shower Panel Materials",
+    "budgetCents": 0,
+    "spendCents": 0,
+    "sortOrder": 6
+  },
+  {
+    "divNum": 10,
+    "divName": "SPECIALTIES AND EQUIPMENT",
+    "name": "Glass shower/Surround Install (surrounds and glass doors)",
+    "coding": "Glass Shower/Surround Install",
+    "budgetCents": 6400000,
+    "spendCents": 7723381,
+    "sortOrder": 7
+  },
+  {
+    "divNum": 10,
+    "divName": "SPECIALTIES AND EQUIPMENT",
+    "name": "Sport Court Equipment - Allowance",
+    "coding": "Sport Court Equipment",
+    "budgetCents": 1000000,
+    "spendCents": 0,
+    "sortOrder": 8
+  },
+  {
+    "divNum": 10,
+    "divName": "SPECIALTIES AND EQUIPMENT",
+    "name": "BBQ Grill (Allowance)",
+    "coding": "BBQ Grill",
+    "budgetCents": 2500000,
+    "spendCents": 484747,
+    "sortOrder": 9
+  },
+  {
+    "divNum": 10,
+    "divName": "SPECIALTIES AND EQUIPMENT",
+    "name": "Fireplace - (Allowance)",
+    "coding": "Fireplace",
+    "budgetCents": 1000000,
+    "spendCents": 0,
+    "sortOrder": 10
+  },
+  {
+    "divNum": 10,
+    "divName": "SPECIALTIES AND EQUIPMENT",
+    "name": "Fire Pit/Install",
+    "coding": "Fire Pit/Install",
+    "budgetCents": 0,
+    "spendCents": 0,
+    "sortOrder": 11
+  },
+  {
+    "divNum": 10,
+    "divName": "SPECIALTIES AND EQUIPMENT",
+    "name": "Fitness Equipment (Allowance)",
+    "coding": "Fitness Equipment (Allowance)",
+    "budgetCents": 0,
+    "spendCents": 0,
+    "sortOrder": 12
+  },
+  {
+    "divNum": 10,
+    "divName": "SPECIALTIES AND EQUIPMENT",
+    "name": "Laundry Equipment (Allowance)",
+    "coding": "Laundry Equipment",
+    "budgetCents": 10000000,
+    "spendCents": 10000000,
+    "sortOrder": 13
+  },
+  {
+    "divNum": 11,
+    "divName": "FURNISHINGS",
+    "name": "Vanity Bases & Tops  - quoted as install only",
+    "coding": "Vanity Bases & Tops  - quoted as install only",
+    "budgetCents": 0,
+    "spendCents": 0,
+    "sortOrder": 1
+  },
+  {
+    "divNum": 11,
+    "divName": "FURNISHINGS",
+    "name": "Cultured Marble Tub/Shower Surrounds and Shower Pan Material -",
+    "coding": "Tub/Shower Surrounds and Pan",
+    "budgetCents": 12300000,
+    "spendCents": 4238830,
+    "sortOrder": 2
+  },
+  {
+    "divNum": 11,
+    "divName": "FURNISHINGS",
+    "name": "Quartz materials and install public areas/GR window sills -",
+    "coding": "Quartz Materials & Public Install",
+    "budgetCents": 6400000,
+    "spendCents": 9086415,
+    "sortOrder": 3
+  },
+  {
+    "divNum": 11,
+    "divName": "FURNISHINGS",
+    "name": "Quartz materials for guestrooms. - quoted as install only",
+    "coding": "Quartz materials for guestrooms. - quoted as install only",
+    "budgetCents": 0,
+    "spendCents": 0,
+    "sortOrder": 4
+  },
+  {
+    "divNum": 11,
+    "divName": "FURNISHINGS",
+    "name": "Vanity install",
+    "coding": "Vanity install",
+    "budgetCents": 0,
+    "spendCents": 0,
+    "sortOrder": 5
+  },
+  {
+    "divNum": 11,
+    "divName": "FURNISHINGS",
+    "name": "FFE Installation",
+    "coding": "FF&E Installation",
+    "budgetCents": 8000000,
+    "spendCents": 9091310,
+    "sortOrder": 6
+  },
+  {
+    "divNum": 11,
+    "divName": "FURNISHINGS",
+    "name": "Hotel Rooms for installers",
+    "coding": "Hotel Rooms for installers",
+    "budgetCents": 0,
+    "spendCents": 0,
+    "sortOrder": 7
+  },
+  {
+    "divNum": 11,
+    "divName": "FURNISHINGS",
+    "name": "Public Area Installation (Allowance)",
+    "coding": "Public Area Installation",
+    "budgetCents": 700000,
+    "spendCents": 0,
+    "sortOrder": 8
+  },
+  {
+    "divNum": 11,
+    "divName": "FURNISHINGS",
+    "name": "Fitness Room Mirrors with Installation",
+    "coding": "Fitness Room Mirrors w/ Install",
+    "budgetCents": 1600000,
+    "spendCents": 0,
+    "sortOrder": 9
+  },
+  {
+    "divNum": 12,
+    "divName": "SWIMMING POOL",
+    "name": "Swimming Pool (Allowance)",
+    "coding": "Swimming Pool",
+    "budgetCents": 21500000,
+    "spendCents": 20686370,
+    "sortOrder": 1
+  },
+  {
+    "divNum": 13,
+    "divName": "CONVEYING EQUIPMENT",
+    "name": "Elevators (Allowance)",
+    "coding": "Elevators",
+    "budgetCents": 24900000,
+    "spendCents": 25820000,
+    "sortOrder": 1
+  },
+  {
+    "divNum": 13,
+    "divName": "CONVEYING EQUIPMENT",
+    "name": "Elevator Temporary Usage",
+    "coding": "Elevator Temporary Usage",
+    "budgetCents": 0,
+    "spendCents": 0,
+    "sortOrder": 2
+  },
+  {
+    "divNum": 13,
+    "divName": "CONVEYING EQUIPMENT",
+    "name": "Elevator Safety",
+    "coding": "Elevator Safety",
+    "budgetCents": 0,
+    "spendCents": 0,
+    "sortOrder": 3
+  },
+  {
+    "divNum": 13,
+    "divName": "CONVEYING EQUIPMENT",
+    "name": "Linen Chute",
+    "coding": "Linen Chute",
+    "budgetCents": 2100000,
+    "spendCents": 1180000,
+    "sortOrder": 4
+  },
+  {
+    "divNum": 14,
+    "divName": "FIRE SUPPRESSION",
+    "name": "FIRE SUPPRESSION",
+    "coding": "Fire Suppression",
+    "budgetCents": 19700000,
+    "spendCents": 19700000,
+    "sortOrder": 1
+  },
+  {
+    "divNum": 15,
+    "divName": "PLUMBING/HVAC",
+    "name": "Mechanical",
+    "coding": "Mechanical",
+    "budgetCents": 74900000,
+    "spendCents": 75674267,
+    "sortOrder": 1
+  },
+  {
+    "divNum": 15,
+    "divName": "PLUMBING/HVAC",
+    "name": "Plumbing",
+    "coding": "Plumbing",
+    "budgetCents": 90000000,
+    "spendCents": 90898810,
+    "sortOrder": 2
+  },
+  {
+    "divNum": 15,
+    "divName": "PLUMBING/HVAC",
+    "name": "VTAC's (Allowance)",
+    "coding": "VTACs",
+    "budgetCents": 24200000,
+    "spendCents": 22267552,
+    "sortOrder": 3
+  },
+  {
+    "divNum": 16,
+    "divName": "ELECTRICAL",
+    "name": "Base Bid (Allowance)",
+    "coding": "Electrical",
+    "budgetCents": 89500000,
+    "spendCents": 96758842,
+    "sortOrder": 1
+  },
+  {
+    "divNum": 16,
+    "divName": "ELECTRICAL",
+    "name": "Structural Cabling",
+    "coding": "Structural Cabling",
+    "budgetCents": 10600000,
+    "spendCents": 5625000,
+    "sortOrder": 2
+  },
+  {
+    "divNum": 16,
+    "divName": "ELECTRICAL",
+    "name": "Fire alarm",
+    "coding": "Fire Alarm",
+    "budgetCents": 10800000,
+    "spendCents": 14600000,
+    "sortOrder": 3
+  },
+  {
+    "divNum": 16,
+    "divName": "ELECTRICAL",
+    "name": "Audio/Visual",
+    "coding": "Audio/Visual",
+    "budgetCents": 0,
+    "spendCents": 0,
+    "sortOrder": 4
+  },
+  {
+    "divNum": 16,
+    "divName": "ELECTRICAL",
+    "name": "Light Poles",
+    "coding": "Light Poles",
+    "budgetCents": 3800000,
+    "spendCents": 0,
+    "sortOrder": 5
+  },
+  {
+    "divNum": 16,
+    "divName": "ELECTRICAL",
+    "name": "Security Monitoring System",
+    "coding": "Security Monitoring System",
+    "budgetCents": 2100000,
+    "spendCents": 0,
+    "sortOrder": 6
+  },
+  {
+    "divNum": 16,
+    "divName": "ELECTRICAL",
+    "name": "Phone System",
+    "coding": "Phone System",
+    "budgetCents": 2100000,
+    "spendCents": 0,
+    "sortOrder": 7
+  },
+  {
+    "divNum": 16,
+    "divName": "ELECTRICAL",
+    "name": "Utilities Company Fees",
+    "coding": "Utilities Company Fees",
+    "budgetCents": 0,
+    "spendCents": 0,
+    "sortOrder": 8
+  },
+  {
+    "divNum": 17,
+    "divName": "ELECTRICAL",
+    "name": "General Libility & Builder's Risk (Allowance)",
+    "coding": "General Liability",
+    "budgetCents": 9200000,
+    "spendCents": 9200000,
+    "sortOrder": 9
+  },
+  {
+    "divNum": 18,
+    "divName": "ELECTRICAL",
+    "name": "Contractor's Fee",
+    "coding": "Contractor's Fee",
+    "budgetCents": 30000000,
+    "spendCents": 28333333,
+    "sortOrder": 10
+  }
+]

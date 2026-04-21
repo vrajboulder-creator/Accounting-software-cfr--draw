@@ -1,0 +1,86 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 20 14.3% 4.1%;
+    --card: 0 0% 100%;
+    --card-foreground: 20 14.3% 4.1%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 20 14.3% 4.1%;
+    /* Boulder orange as primary */
+    --primary: 16 88% 58%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 30 20% 96%;
+    --secondary-foreground: 20 14.3% 4.1%;
+    --muted: 30 20% 96%;
+    --muted-foreground: 25 5.3% 44.7%;
+    --accent: 16 100% 95%;
+    --accent-foreground: 16 88% 30%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 60 9.1% 97.8%;
+    --border: 20 5.9% 90%;
+    --input: 20 5.9% 90%;
+    --ring: 16 88% 58%;
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1, "ss01" 1;
+  }
+  /* Number-heavy tables: tabular figures */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Subtle grid background for hero areas */
+.bg-grid {
+  background-image:
+    linear-gradient(to right, rgb(0 0 0 / 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(0 0 0 / 0.04) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+.bg-grid-dots {
+  background-image: radial-gradient(rgb(0 0 0 / 0.08) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/* Boulder brand gradient used sparingly */
+.boulder-gradient {
+  background: linear-gradient(135deg, #F26B35 0%, #FF9D6D 100%);
+}
+
+/* Utility: thin divider rule */
+.rule {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgb(0 0 0 / 0.1), transparent);
+}
+
+/* Shimmer for loading skeletons */
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--muted)) 0%,
+    hsl(var(--accent)) 50%,
+    hsl(var(--muted)) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 3s linear infinite;
+}
+
+/* Outline logo style matching Boulder logo */
+.outline-text {
+  -webkit-text-stroke: 2px currentColor;
+  color: transparent;
+  paint-order: stroke fill;
+}

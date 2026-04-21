@@ -1,0 +1,79 @@
+# ── Node / Next.js ──────────────────────────────────────────────────────────
+node_modules/
+.next/
+out/
+dist/
+build/
+.turbo/
+.vercel/
+*.tsbuildinfo
+next-env.d.ts
+
+# ── Env / secrets ───────────────────────────────────────────────────────────
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.pem
+*.key
+
+# ── Logs ────────────────────────────────────────────────────────────────────
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+*.log
+
+# ── IDE / editor ────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── OS files ────────────────────────────────────────────────────────────────
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# ── Dropbox ─────────────────────────────────────────────────────────────────
+.dropbox
+.dropbox.attr
+.dropbox.cache
+
+# ── Testing / coverage ──────────────────────────────────────────────────────
+coverage/
+.nyc_output/
+*.lcov
+
+# ── Extracted / generated ───────────────────────────────────────────────────
+scripts/extracted/*.json
+tmp/
+temp/
+
+# ── Excel / Office temp files ───────────────────────────────────────────────
+~$*.xlsx
+~$*.docx
+~$*.pptx
+
+# ── Backup files ────────────────────────────────────────────────────────────
+*.bak
+*.backup
+*.orig
+
+# ── Large binaries / archives ───────────────────────────────────────────────
+*.zip
+*.tar
+*.tar.gz
+*.7z
+*.rar
+
+# ── Claude / AI tooling ─────────────────────────────────────────────────────
+.claude/
+.cursor/
