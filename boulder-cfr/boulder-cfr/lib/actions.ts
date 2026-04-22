@@ -94,6 +94,43 @@ export async function actionGetDrawLineItems(drawId: string) {
   return q.getDrawLineItems(drawId);
 }
 
+// ── Divisions ────────────────────────────────────────────────────────────────
+
+export async function actionCreateDivision(data: { projectId: string; number: number; name: string; scheduledValueCents: number }) {
+  const id = await q.createDivision(data);
+  revalidatePath(`/projects/${data.projectId}`);
+  return { id };
+}
+
+export async function actionUpdateDivision(id: string, projectId: string, data: Record<string, unknown>) {
+  await q.updateDivision(id, data);
+  revalidatePath(`/projects/${projectId}`);
+}
+
+export async function actionDeleteDivision(id: string, projectId: string) {
+  await q.deleteDivision(id);
+  revalidatePath(`/projects/${projectId}`);
+}
+
+// ── Bid Line Items ────────────────────────────────────────────────────────────
+
+export async function actionCreateBidLineItem(data: { divisionId: string; name: string; budgetCents: number; projectId: string }) {
+  const { projectId, ...rest } = data;
+  const id = await q.createBidLineItem(rest);
+  revalidatePath(`/projects/${projectId}`);
+  return { id };
+}
+
+export async function actionUpdateBidLineItem(id: string, projectId: string, data: Record<string, unknown>) {
+  await q.updateBidLineItem(id, data);
+  revalidatePath(`/projects/${projectId}`);
+}
+
+export async function actionDeleteBidLineItem(id: string, projectId: string) {
+  await q.deleteBidLineItem(id);
+  revalidatePath(`/projects/${projectId}`);
+}
+
 // ── Projects ──────────────────────────────────────────────────────────────────
 
 export async function actionCreateProject(data: {

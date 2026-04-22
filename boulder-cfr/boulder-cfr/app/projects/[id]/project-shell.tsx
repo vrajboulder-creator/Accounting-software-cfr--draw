@@ -21,6 +21,8 @@ import {
   actionCreateDraw, actionSaveDrawLineItem,
   actionSubmitDraw, actionCertifyDraw, actionMarkDrawPaid,
   actionUpdateProject, actionGetDrawLineItems,
+  actionCreateDivision, actionUpdateDivision, actionDeleteDivision,
+  actionCreateBidLineItem, actionUpdateBidLineItem, actionDeleteBidLineItem,
 } from "@/lib/actions";
 import {
   AlertTriangle, DollarSign, Layers, PieChart, TrendingDown, Receipt,
@@ -100,7 +102,7 @@ export function ProjectShell({ data }: { data: ProjectPageData }) {
       </nav>
 
       <div className={activeTab === "overview"      ? undefined : "hidden"}><OverviewTab      data={data} setActiveTab={setActiveTab} onOpenDraw={(id) => { setOpenDrawId(id); setActiveTab("draws"); }} /></div>
-      <div className={activeTab === "cfr"           ? undefined : "hidden"}><CFRTab           data={data} /></div>
+      <div className={activeTab === "cfr" ? undefined : "hidden"}><CFRTab data={data} /></div>
       <div className={activeTab === "draws"         ? undefined : "hidden"}><DrawsTab         data={data} initialDrawId={openDrawId} /></div>
       <div className={activeTab === "transactions"  ? undefined : "hidden"}><TransactionsTab  data={data} /></div>
       <div className={activeTab === "change-orders" ? undefined : "hidden"}><ChangeOrdersTab  data={data} /></div>
@@ -248,11 +250,53 @@ function DrawDetailModal({ draw, receivedFunds, contractSumCents, onClose, onOpe
   );
 }
 
+function DrawExpandedRow({ draw, receivedFunds, onOpenDetail }: {
+  draw: ProjectPageData["draws"][0];
+  receivedFunds: ProjectPageData["receivedFunds"];
+  contractSumCents: number;
+  onOpenDetail?: () => void;
+}) {
+  const drawReceived = receivedFunds.filter((r) => r.drawNumber === draw.number);
+  const receivedNet = drawReceived.reduce((s, r) => s + r.netCents, 0);
+  const cumulReceivedNet = receivedFunds.filter((r) => r.drawNumber <= draw.number).reduce((s, r) => s + r.netCents, 0);
+
+  return (
+    <div className="px-6 py-3 border-t border-neutral-200 flex items-center gap-6 text-xs">
+      <div>
+        <div className="text-[10px] uppercase tracking-wider font-semibold text-neutral-400">Received (this)</div>
+        <div className="mt-0.5 font-semibold tabular text-emerald-700">{formatCurrency(receivedNet, { compact: true })}</div>
+      </div>
+      <div>
+        <div className="text-[10px] uppercase tracking-wider font-semibold text-neutral-400">Cumulative</div>
+        <div className="mt-0.5 font-semibold tabular text-emerald-700">{formatCurrency(cumulReceivedNet, { compact: true })}</div>
+      </div>
+      <div>
+        <div className="text-[10px] uppercase tracking-wider font-semibold text-neutral-400">Current due</div>
+        <div className="mt-0.5 font-semibold tabular text-boulder-600">{formatCurrency(draw.line8CurrentPaymentDueCents, { compact: true })}</div>
+      </div>
+      <div>
+        <div className="text-[10px] uppercase tracking-wider font-semibold text-neutral-400">Retainage</div>
+        <div className="mt-0.5 font-semibold tabular text-amber-700">{formatCurrency(draw.line5RetainageCents, { compact: true })}</div>
+      </div>
+      <div className="flex-1" />
+      {onOpenDetail && (
+        <button
+          onClick={onOpenDetail}
+          className="flex items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 hover:text-boulder-700 hover:border-boulder-300 transition-colors"
+        >
+          <FileText className="h-3.5 w-3.5" />
+          G702 / G703 detail
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function OverviewTab({ data, setActiveTab, onOpenDraw }: { data: ProjectPageData; setActiveTab?: (t: TabId) => void; onOpenDraw?: (id: string) => void }) {
   const { project, divisions, draws, changeOrders, bidLineItems, receivedFunds } = data;
   const { role } = useRole();
   const isOwner = role === "owner";
-  const [selectedDraw, setSelectedDraw] = React.useState<ProjectPageData["draws"][0] | null>(null);
+  const [expandedDrawId, setExpandedDrawId] = React.useState<string | null>(null);
 
   const latestDraw = draws[0];
   const scheduled = divisions.reduce((s, d) => s + d.scheduledValueCents, 0);
@@ -353,7 +397,8 @@ export function OverviewTab({ data, setActiveTab, onOpenDraw }: { data: ProjectP
                   const received = receivedNetByDraw[d.number] ?? 0;
                   const isPaid = received >= net && net > 0;
                   return (
-                    <tr key={d.id} className="border-t border-neutral-100 hover:bg-neutral-50/60 transition-colors">
+                    <React.Fragment key={d.id}>
+                    <tr className="border-t border-neutral-100 hover:bg-neutral-50/60 transition-colors">
                       <td className="py-3 pl-5 pr-3">
                         <div className="h-8 w-8 rounded-lg bg-boulder-50 text-boulder-700 flex items-center justify-center font-bold text-sm tabular">
                           {d.number}
@@ -392,14 +437,27 @@ export function OverviewTab({ data, setActiveTab, onOpenDraw }: { data: ProjectP
                       </td>
                       <td className="py-3 pr-4 text-center">
                         <button
-                          onClick={() => setSelectedDraw(d)}
-                          className="text-neutral-300 hover:text-boulder-500 transition-colors"
-                          title="View details"
+                          onClick={() => setExpandedDrawId(expandedDrawId === d.id ? null : d.id)}
+                          className={cn("transition-colors", expandedDrawId === d.id ? "text-boulder-600" : "text-neutral-300 hover:text-boulder-500")}
+                          title={expandedDrawId === d.id ? "Collapse" : "Expand"}
                         >
                           <Eye className="h-4 w-4" />
                         </button>
                       </td>
                     </tr>
+                    {expandedDrawId === d.id && (
+                      <tr className="bg-neutral-50/70">
+                        <td colSpan={9} className="p-0">
+                          <DrawExpandedRow
+                            draw={d}
+                            receivedFunds={receivedFunds}
+                            contractSumCents={project.contractSumCents}
+                            onOpenDetail={() => onOpenDraw?.(d.id)}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                    </React.Fragment>
                   );
                 })}
               </tbody>
@@ -451,122 +509,493 @@ export function OverviewTab({ data, setActiveTab, onOpenDraw }: { data: ProjectP
         )}
       </div>
 
-      {/* Draw detail modal */}
-      <AnimatePresence>
-        {selectedDraw && (
-          <DrawDetailModal
-            draw={selectedDraw}
-            receivedFunds={receivedFunds}
-            contractSumCents={project.contractSumCents}
-            onClose={() => setSelectedDraw(null)}
-            onOpenDetail={() => { onOpenDraw?.(selectedDraw.id); setSelectedDraw(null); }}
-          />
-        )}
-      </AnimatePresence>
     </main>
   );
 }
 
-// ── CFR Detail Sheet with division filter ────────────────────────────────────
+// ── CFR types ────────────────────────────────────────────────────────────────
 
 type Cell = string | number | boolean | null;
 
-function BidSheetView({ sheet }: { sheet: Cell[][] }) {
-  // row 0 = title, row 1 = column headers, row 2+ = data
-  const allRows = sheet.slice(1); // keep col headers as row 0
 
-  // section headers: ALL-CAPS string with empty B/C cols
-  const sections = React.useMemo(() => {
-    const list: { label: string; startIdx: number }[] = [];
-    allRows.forEach((r, i) => {
-      if (i === 0) return; // skip col header row
-      if (typeof r[0] === "string" && r[0].trim() !== "" && r[1] === "" && r[2] === "") {
-        list.push({ label: r[0].trim(), startIdx: i });
+// ── CFR Manage ────────────────────────────────────────────────────────────────
+
+type DivRow = ProjectPageData["divisions"][number];
+type BLIRow = ProjectPageData["bidLineItems"][number];
+
+function CFRManageView({ data }: { data: ProjectPageData }) {
+  const { project, divisions, bidLineItems } = data;
+  const [isPending, startTransition] = useTransition();
+
+  // Division form
+  const [showDivForm, setShowDivForm] = React.useState(false);
+  const [editDiv, setEditDiv] = React.useState<DivRow | null>(null);
+  const [divNum, setDivNum] = React.useState("");
+  const [divName, setDivName] = React.useState("");
+  const [divBudget, setDivBudget] = React.useState("");
+
+  // BLI form
+  const [showBliForm, setShowBliForm] = React.useState<string | null>(null); // divisionId
+  const [editBli, setEditBli] = React.useState<BLIRow | null>(null);
+  const [bliName, setBliName] = React.useState("");
+  const [bliBudget, setBliBudget] = React.useState("");
+
+  // Expanded divisions
+  const [expanded, setExpanded] = React.useState<Set<string>>(new Set());
+
+  function openDivEdit(d: DivRow) {
+    setEditDiv(d);
+    setDivNum(String(d.number));
+    setDivName(d.name);
+    setDivBudget((d.scheduledValueCents / 100).toFixed(2));
+    setShowDivForm(true);
+  }
+
+  function openDivCreate() {
+    setEditDiv(null);
+    setDivNum("");
+    setDivName("");
+    setDivBudget("");
+    setShowDivForm(true);
+  }
+
+  function openBliEdit(b: BLIRow) {
+    setEditBli(b);
+    setBliName(b.name);
+    setBliBudget((b.budgetCents / 100).toFixed(2));
+    setShowBliForm(b.divisionId);
+  }
+
+  function openBliCreate(divId: string) {
+    setEditBli(null);
+    setBliName("");
+    setBliBudget("");
+    setShowBliForm(divId);
+  }
+
+  function submitDiv() {
+    const cents = Math.round(parseFloat(divBudget) * 100);
+    const num = parseInt(divNum);
+    if (!divName || isNaN(cents) || isNaN(num)) return;
+    startTransition(async () => {
+      if (editDiv) {
+        await actionUpdateDivision(editDiv.id, project.id, { name: divName, number: num, scheduledValueCents: cents });
+      } else {
+        await actionCreateDivision({ projectId: project.id, number: num, name: divName, scheduledValueCents: cents });
       }
+      setShowDivForm(false);
+      setEditDiv(null);
     });
-    return list;
-  }, [allRows]);
+  }
 
+  function deleteDiv(id: string) {
+    if (!confirm("Delete this division? All bid line items will also be deleted.")) return;
+    startTransition(() => actionDeleteDivision(id, project.id));
+  }
+
+  function submitBli(divId: string) {
+    const cents = Math.round(parseFloat(bliBudget) * 100);
+    if (!bliName || isNaN(cents)) return;
+    startTransition(async () => {
+      if (editBli) {
+        await actionUpdateBidLineItem(editBli.id, project.id, { name: bliName, budgetCents: cents });
+      } else {
+        await actionCreateBidLineItem({ divisionId: divId, name: bliName, budgetCents: cents, projectId: project.id });
+      }
+      setShowBliForm(null);
+      setEditBli(null);
+    });
+  }
+
+  function deleteBli(id: string) {
+    if (!confirm("Delete this bid line item?")) return;
+    startTransition(() => actionDeleteBidLineItem(id, project.id));
+  }
+
+  return (
+    <div className="space-y-4 mt-2">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-bold text-neutral-700 uppercase tracking-wider">Divisions & Bid Line Items</h2>
+        <Button size="sm" onClick={openDivCreate} disabled={isPending}>
+          <Plus className="h-3.5 w-3.5 mr-1" /> Add Division
+        </Button>
+      </div>
+
+      {/* Division create/edit form */}
+      {showDivForm && (
+        <div className="rounded-xl border border-boulder-200 bg-boulder-50 p-4 space-y-3">
+          <div className="text-xs font-bold text-boulder-700 uppercase tracking-wider">{editDiv ? "Edit Division" : "New Division"}</div>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="text-xs text-neutral-500 mb-1 block">Number</label>
+              <Input value={divNum} onChange={(e) => setDivNum(e.target.value)} placeholder="1" className="h-8 text-sm" />
+            </div>
+            <div>
+              <label className="text-xs text-neutral-500 mb-1 block">Name</label>
+              <Input value={divName} onChange={(e) => setDivName(e.target.value)} placeholder="General Conditions" className="h-8 text-sm" />
+            </div>
+            <div>
+              <label className="text-xs text-neutral-500 mb-1 block">Scheduled Value ($)</label>
+              <Input value={divBudget} onChange={(e) => setDivBudget(e.target.value)} placeholder="0.00" className="h-8 text-sm" />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={submitDiv} disabled={isPending}>{editDiv ? "Save" : "Create"}</Button>
+            <Button size="sm" variant="ghost" onClick={() => { setShowDivForm(false); setEditDiv(null); }}>Cancel</Button>
+          </div>
+        </div>
+      )}
+
+      {/* Division list */}
+      {divisions.length === 0 && (
+        <div className="rounded-xl border border-neutral-200 bg-white p-8 text-center text-sm text-neutral-500">No divisions yet. Add one above.</div>
+      )}
+      {divisions.map((div) => {
+        const divBlis = bidLineItems.filter((b) => b.divisionId === div.id);
+        const isExpanded = expanded.has(div.id);
+        return (
+          <div key={div.id} className="rounded-xl border border-neutral-200 bg-white overflow-hidden">
+            {/* Division header row */}
+            <div className="flex items-center gap-3 px-4 py-3 bg-neutral-50 border-b border-neutral-200">
+              <button
+                className="text-neutral-400 hover:text-neutral-700 transition-colors"
+                onClick={() => setExpanded((s) => { const n = new Set(s); n.has(div.id) ? n.delete(div.id) : n.add(div.id); return n; })}
+              >
+                <ChevronRight className={cn("h-4 w-4 transition-transform", isExpanded && "rotate-90")} />
+              </button>
+              <span className="text-xs font-bold text-neutral-500 w-6 text-center">{div.number}</span>
+              <span className="flex-1 text-sm font-semibold text-neutral-900">{div.name}</span>
+              <span className="text-xs text-neutral-500 tabular">{formatCurrency(div.scheduledValueCents)}</span>
+              <span className="text-xs text-neutral-400">{divBlis.length} items</span>
+              <button className="p-1 rounded hover:bg-neutral-100 text-neutral-500 hover:text-neutral-800 transition-colors" onClick={() => openDivEdit(div)}>
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 11l6-6 3 3-6 6H9v-3z"/></svg>
+              </button>
+              <button className="p-1 rounded hover:bg-red-50 text-neutral-400 hover:text-red-600 transition-colors" onClick={() => deleteDiv(div.id)}>
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+
+            {/* Bid line items */}
+            {isExpanded && (
+              <div>
+                {divBlis.length === 0 && (
+                  <div className="px-4 py-3 text-xs text-neutral-400">No line items yet.</div>
+                )}
+                {divBlis.map((b) => (
+                  <div key={b.id} className="flex items-center gap-3 px-4 py-2 border-b border-neutral-100 last:border-0 hover:bg-neutral-50 group">
+                    <span className="w-6" />
+                    <span className="flex-1 text-sm text-neutral-800">{b.name}</span>
+                    <span className="text-xs text-neutral-500 tabular">{formatCurrency(b.budgetCents)}</span>
+                    <span className="text-xs text-neutral-400 tabular">actual: {formatCurrency(b.actualCents)}</span>
+                    <button className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-neutral-100 text-neutral-500 hover:text-neutral-800 transition-all" onClick={() => openBliEdit(b)}>
+                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 11l6-6 3 3-6 6H9v-3z"/></svg>
+                    </button>
+                    <button className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-red-50 text-neutral-400 hover:text-red-600 transition-all" onClick={() => deleteBli(b.id)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+
+                {/* BLI inline form */}
+                {showBliForm === div.id && (
+                  <div className="px-4 py-3 bg-neutral-50 border-t border-neutral-200 space-y-2">
+                    <div className="text-xs font-bold text-neutral-600 uppercase tracking-wider">{editBli ? "Edit Line Item" : "New Line Item"}</div>
+                    <div className="flex gap-2 items-end">
+                      <div className="flex-1">
+                        <label className="text-xs text-neutral-500 mb-1 block">Name</label>
+                        <Input value={bliName} onChange={(e) => setBliName(e.target.value)} placeholder="Concrete" className="h-8 text-sm" />
+                      </div>
+                      <div className="w-36">
+                        <label className="text-xs text-neutral-500 mb-1 block">Budget ($)</label>
+                        <Input value={bliBudget} onChange={(e) => setBliBudget(e.target.value)} placeholder="0.00" className="h-8 text-sm" />
+                      </div>
+                      <Button size="sm" onClick={() => submitBli(div.id)} disabled={isPending}>{editBli ? "Save" : "Add"}</Button>
+                      <Button size="sm" variant="ghost" onClick={() => { setShowBliForm(null); setEditBli(null); }}>Cancel</Button>
+                    </div>
+                  </div>
+                )}
+
+                {showBliForm !== div.id && (
+                  <div className="px-4 py-2">
+                    <button className="text-xs text-boulder-600 hover:text-boulder-800 font-medium flex items-center gap-1" onClick={() => openBliCreate(div.id)}>
+                      <Plus className="h-3 w-3" /> Add line item
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── CFR DB-backed views ──────────────────────────────────────────────────────
+
+function CFRSummaryDB({ data }: { data: ProjectPageData }) {
+  const { divisions } = data;
+  const rows: Cell[][] = [];
+  rows.push(["AIA Summary — by Division"]);
+  rows.push(["", "", "", "Debits - Gross Amount", "", "", "Credits", "", ""]);
+  rows.push(["#", "Category", "Scheduled Value", "Gross Spend", "Retainage", "Net Spend", "Net Received", "Cash Balance", "Remaining"]);
+  let totSch = 0, totGross = 0, totRetn = 0, totNetSpend = 0, totNetRec = 0;
+  divisions.forEach((d) => {
+    const netSpend = d.grossSpendCents - d.retainageCents;
+    const cashBalance = d.netReceivedCents - netSpend;
+    const remaining = d.scheduledValueCents - d.grossSpendCents;
+    rows.push([
+      d.number, d.name,
+      d.scheduledValueCents / 100,
+      d.grossSpendCents / 100,
+      d.retainageCents / 100,
+      netSpend / 100,
+      d.netReceivedCents / 100,
+      cashBalance / 100,
+      remaining / 100,
+    ]);
+    totSch += d.scheduledValueCents;
+    totGross += d.grossSpendCents;
+    totRetn += d.retainageCents;
+    totNetSpend += netSpend;
+    totNetRec += d.netReceivedCents;
+  });
+  rows.push(["", "TOTALS", totSch / 100, totGross / 100, totRetn / 100, totNetSpend / 100, totNetRec / 100, (totNetRec - totNetSpend) / 100, (totSch - totGross) / 100]);
+
+  return (
+    <XlsxSheet
+      data={rows}
+      title="AIA Summary"
+      sectionRows={[0, 1]}
+      mergeRows={[0, 1]}
+      boldRows={[2, rows.length - 1]}
+      rawNumberCols={[0]}
+      colWidths={["4%", "20%", "10%", "10%", "9%", "10%", "10%", "9%", "10%"]}
+      rowAccentFn={(rIdx, row) => {
+        if (rIdx < 3 || rIdx >= rows.length - 1) return null;
+        const netSpend = row[5];
+        const netReceived = row[6];
+        if (typeof netSpend !== "number" || typeof netReceived !== "number") return null;
+        return netReceived >= netSpend ? "green" : "red";
+      }}
+    />
+  );
+}
+
+function CFRBidDB({ data }: { data: ProjectPageData }) {
+  const { divisions, bidLineItems } = data;
   const [selected, setSelected] = React.useState<string>("all");
 
-  const filtered = React.useMemo(() => {
-    if (selected === "all") return allRows;
-    const sec = sections.find((s) => s.label === selected);
-    if (!sec) return allRows;
-    const next = sections[sections.indexOf(sec) + 1];
-    return [
-      allRows[0], // col headers
-      ...allRows.slice(sec.startIdx, next ? next.startIdx : undefined),
-    ];
-  }, [selected, allRows, sections]);
+  const rowsBySection = React.useMemo(() => {
+    const out: Cell[][] = [];
+    out.push(["#", "Description", "Coding", "Budget", "Total Spend", "Remaining", "Percentage"]);
 
-  const sectionRows = filtered.reduce<number[]>((acc, r, i) => {
-    if (i === 0) return acc;
-    if (typeof r[0] === "string" && r[0].trim() !== "" && r[1] === "" && r[2] === "") acc.push(i);
-    return acc;
-  }, []);
+    const visibleDivs = selected === "all" ? divisions : divisions.filter((d) => `${d.number}. ${d.name}` === selected);
+
+    for (const div of visibleDivs) {
+      out.push([`${div.number}. ${div.name}`, "", "", "", "", "", ""]);
+      const items = bidLineItems.filter((b) => b.divisionId === div.id);
+      let divBudget = 0, divActual = 0;
+      items.forEach((b, idx) => {
+        const pct = b.budgetCents > 0 ? b.actualCents / b.budgetCents : 0;
+        const remaining = b.budgetCents - b.actualCents;
+        out.push([idx + 1, b.name, b.coding ?? "", b.budgetCents / 100, b.actualCents / 100, remaining / 100, pct]);
+        divBudget += b.budgetCents;
+        divActual += b.actualCents;
+      });
+      const divPct = divBudget > 0 ? divActual / divBudget : 0;
+      out.push(["", `Subtotal — Div ${div.number}`, "", divBudget / 100, divActual / 100, (divBudget - divActual) / 100, divPct]);
+    }
+    return out;
+  }, [divisions, bidLineItems, selected]);
+
+  const sectionRows: number[] = [];
+  const boldRows = [0];
+  rowsBySection.forEach((r, i) => {
+    if (i === 0) return;
+    if (typeof r[0] === "string" && /^\d+\./.test(r[0])) sectionRows.push(i);
+    if (typeof r[1] === "string" && r[1].startsWith("Subtotal")) boldRows.push(i);
+  });
 
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-3">
-        <label className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">Section</label>
+        <label className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">Division</label>
         <select
           value={selected}
           onChange={(e) => setSelected(e.target.value)}
           className="text-sm border border-neutral-300 rounded-lg px-3 py-1.5 bg-white text-neutral-900 focus:outline-none focus:ring-2 focus:ring-boulder-400"
         >
-          <option value="all">All sections</option>
-          {sections.map((s) => (
-            <option key={s.label} value={s.label}>{s.label}</option>
+          <option value="all">All divisions</option>
+          {divisions.map((d) => (
+            <option key={d.id} value={`${d.number}. ${d.name}`}>{d.number}. {d.name}</option>
           ))}
         </select>
-        {selected !== "all" && (
-          <span className="text-xs text-neutral-500">{filtered.length - 1} rows</span>
-        )}
       </div>
       <XlsxSheet
-        data={filtered}
+        data={rowsBySection}
         title="Bid Summary"
-        boldRows={[0, ...sectionRows]}
         sectionRows={sectionRows}
         mergeRows={sectionRows}
-        percentCols={[4]}
-        rawNumberCols={[7]}
+        boldRows={boldRows}
+        rawNumberCols={[0]}
+        percentCols={[6]}
+        colWidths={["4%", "30%", "12%", "13%", "13%", "13%", "15%"]}
       />
     </div>
   );
 }
 
-function DetailSheetView({ sheet }: { sheet: Cell[][] }) {
-  // rows 0-1 are junk; row 2 = group headers, row 3 = col names, row 4+ = data
-  const allRows = sheet.slice(2);
-
-  // build division list from rows that match "N. Name"
-  const divisions = React.useMemo(() => {
-    const list: { label: string; startIdx: number }[] = [];
-    allRows.forEach((r, i) => {
-      if (typeof r[0] === "string" && /^\d+\./.test(r[0])) {
-        list.push({ label: r[0] as string, startIdx: i });
-      }
-    });
-    return list;
-  }, [allRows]);
-
+function CFRDetailDB({ data, simplified }: { data: ProjectPageData; simplified?: boolean }) {
+  const { divisions, transactions, receivedFunds, bidLineItems } = data;
   const [selected, setSelected] = React.useState<string>("all");
 
-  const filtered = React.useMemo(() => {
-    if (selected === "all") return allRows.slice(0, 3000);
-    const div = divisions.find((d) => d.label === selected);
-    if (!div) return allRows.slice(0, 3000);
-    const nextDiv = divisions[divisions.indexOf(div) + 1];
-    return [
-      allRows[0], // group header row (Debits/Credits/Other)
-      allRows[1], // column names
-      ...allRows.slice(div.startIdx, nextDiv ? nextDiv.startIdx : undefined),
-    ];
-  }, [selected, allRows, divisions]);
+  const rows = React.useMemo(() => {
+    const blMap = new Map(bidLineItems.map((b) => [b.id, b]));
+    const divMap = new Map(divisions.map((d) => [d.id, d]));
 
-  const divisionRows = filtered.reduce<number[]>((acc, r, i) => {
+    type Entry = {
+      id: string;
+      divNum: number; drawNum: number | null; g703: number | null;
+      date: string | null;
+      description: string; commentary: string; counterparty: string;
+      debitGross: number; debitRetn: number; debitNet: number;
+      creditGross: number; creditRetn: number; creditNet: number;
+      bidItem: string; paidBy: string; backup: string; receivedK1: string; type: string;
+      uniqueCode: string;
+    };
+    const entries: Entry[] = [];
+    for (const t of transactions) {
+      const div = divMap.get(t.divisionId);
+      entries.push({
+        id: t.id,
+        divNum: div?.number ?? 0,
+        drawNum: t.drawNumber ?? null,
+        g703: (t as unknown as { g703?: number | null }).g703 ?? div?.number ?? null,
+        date: t.date,
+        description: t.description || "",
+        commentary: t.commentary || "",
+        counterparty: t.counterparty || "",
+        debitGross: t.amountCents,
+        debitRetn: t.retainageCents,
+        debitNet: t.netCents,
+        creditGross: 0, creditRetn: 0, creditNet: 0,
+        bidItem: (t.bidLineItemId && blMap.get(t.bidLineItemId)?.name) || "",
+        paidBy: t.paidBy || "",
+        backup: (t as unknown as { backup?: string }).backup || "",
+        receivedK1: (t as unknown as { receivedK1?: string }).receivedK1 || "",
+        type: (t as unknown as { paymentType?: string }).paymentType || t.type || "invoice",
+        uniqueCode: (t as unknown as { uniqueCode?: string }).uniqueCode || "",
+      });
+    }
+    for (const r of receivedFunds) {
+      const div = divMap.get(r.divisionId);
+      entries.push({
+        id: r.id,
+        divNum: div?.number ?? 0,
+        drawNum: r.drawNumber,
+        g703: (r as unknown as { g703?: number | null }).g703 ?? div?.number ?? null,
+        date: r.date,
+        description: r.description || "",
+        commentary: "",
+        counterparty: r.counterparty || "",
+        debitGross: 0, debitRetn: 0, debitNet: 0,
+        creditGross: r.grossCents,
+        creditRetn: r.retainageCents,
+        creditNet: r.netCents,
+        bidItem: "",
+        paidBy: "",
+        backup: "",
+        receivedK1: "",
+        type: "credit",
+        uniqueCode: (r as unknown as { uniqueCode?: string }).uniqueCode || "",
+      });
+    }
+
+    let filtered = entries;
+    if (selected !== "all") {
+      const divNum = parseInt(selected.split(".")[0]);
+      filtered = filtered.filter((e) => e.divNum === divNum);
+    }
+
+    if (simplified) {
+      const groups = new Map<string, Entry>();
+      for (const e of filtered) {
+        const key = [e.divNum, e.drawNum, e.description, e.commentary, e.counterparty, e.bidItem, e.paidBy].join("|");
+        const existing = groups.get(key);
+        if (existing) {
+          existing.debitGross += e.debitGross;
+          existing.debitRetn += e.debitRetn;
+          existing.debitNet += e.debitNet;
+          existing.creditGross += e.creditGross;
+          existing.creditRetn += e.creditRetn;
+          existing.creditNet += e.creditNet;
+        } else {
+          groups.set(key, { ...e });
+        }
+      }
+      filtered = [...groups.values()];
+    }
+
+    filtered.sort((a, b) => {
+      if (a.divNum !== b.divNum) return a.divNum - b.divNum;
+      const aIsCredit = a.creditGross !== 0 || a.creditNet !== 0;
+      const bIsCredit = b.creditGross !== 0 || b.creditNet !== 0;
+      if (aIsCredit !== bIsCredit) return aIsCredit ? -1 : 1;
+      if ((a.drawNum ?? 0) !== (b.drawNum ?? 0)) return (a.drawNum ?? 0) - (b.drawNum ?? 0);
+      return (a.date ?? "").localeCompare(b.date ?? "");
+    });
+
+    const out: Cell[][] = [];
+    // Group header row: Debits / Credits / Other Information
+    out.push([
+      "", "", "", "", "",
+      "Debits", "", "",
+      "Credits", "", "",
+      "Other Information", "", "", "", "", "", "",
+    ]);
+    // Column header row
+    out.push([
+      "Date", "G703 #", "Draw", "Description", "Commentary or Counterparty",
+      "Gross Amount", "Retainage", "Net Amount",   // Debits
+      "Gross Amount", "Retainage", "Net Amount",   // Credits
+      "Bid Line Item", "Counterparty", "Paid By", "Backup", "Received K1", "Type", "Unique ID",
+    ]);
+
+    let lastDiv = -1;
+    for (const e of filtered) {
+      if (e.divNum !== lastDiv) {
+        const div = divisions.find((d) => d.number === e.divNum);
+        out.push([`${e.divNum}. ${div?.name ?? ""}`, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
+        lastDiv = e.divNum;
+      }
+      const uniqueId = simplified ? "" : e.uniqueCode;
+      out.push([
+        e.date || "",
+        e.g703 ?? "",
+        e.drawNum ?? "",
+        e.description,
+        e.commentary,
+        e.debitGross / 100 || null,
+        e.debitRetn / 100 || null,
+        e.debitNet / 100 || null,
+        e.creditGross / 100 || null,
+        e.creditRetn / 100 || null,
+        e.creditNet / 100 || null,
+        e.bidItem,
+        e.counterparty,
+        e.paidBy,
+        e.backup,
+        e.receivedK1,
+        e.type,
+        uniqueId,
+      ]);
+    }
+    return out;
+  }, [transactions, receivedFunds, divisions, bidLineItems, selected, simplified]);
+
+  const divisionRows = rows.reduce<number[]>((acc, r, i) => {
+    if (i < 2) return acc;
     if (typeof r[0] === "string" && /^\d+\./.test(r[0])) acc.push(i);
     return acc;
   }, []);
@@ -574,38 +1003,51 @@ function DetailSheetView({ sheet }: { sheet: Cell[][] }) {
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-3">
-        <label className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">Section</label>
+        <label className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">Division</label>
         <select
           value={selected}
           onChange={(e) => setSelected(e.target.value)}
           className="text-sm border border-neutral-300 rounded-lg px-3 py-1.5 bg-white text-neutral-900 focus:outline-none focus:ring-2 focus:ring-boulder-400"
         >
-          <option value="all">All sections</option>
+          <option value="all">All divisions</option>
           {divisions.map((d) => (
-            <option key={d.label} value={d.label}>{d.label}</option>
+            <option key={d.id} value={`${d.number}. ${d.name}`}>{d.number}. {d.name}</option>
           ))}
         </select>
-        {selected !== "all" && (
-          <span className="text-xs text-neutral-500">{filtered.length - 2} rows</span>
-        )}
-        {selected === "all" && allRows.length > 3000 && (
-          <span className="text-xs text-neutral-500">Showing first 3,000 of {(allRows.length).toLocaleString()} rows</span>
-        )}
+        <span className="text-xs text-neutral-500">{rows.length - 1 - divisionRows.length} entries</span>
       </div>
       <XlsxSheet
-        data={filtered}
-        title="Detailed Spend"
+        data={rows}
+        title={simplified ? "Simplified Spend" : "Detailed Spend"}
         sectionRows={[0, ...divisionRows]}
         mergeRows={[0, ...divisionRows]}
-        boldRows={[1, ...divisionRows]}
+        boldRows={[1]}
         rawNumberCols={[1, 2]}
+        colWidths={[
+          "5%",   // Date
+          "2.5%", // G703 #
+          "2.5%", // Draw
+          "9.5%", // Description
+          "9.5%", // Commentary
+          "5.5%", // Debit Gross
+          "4%",   // Debit Retn
+          "5.5%", // Debit Net
+          "5.5%", // Credit Gross
+          "4%",   // Credit Retn
+          "5.5%", // Credit Net
+          "7.5%", // Bid Line Item
+          "6.5%", // Counterparty
+          "4.5%", // Paid By
+          "3.5%", // Backup
+          "4.5%", // Received K1
+          "4%",   // Type
+          "6%",   // Unique ID
+        ]}
         rowAccentFn={(_rIdx, row) => {
-          // col 5 = Debits Gross, col 8 = Credits Gross
-          // skip header rows (row[0] is string label or empty non-data)
           const debit = row[5];
           const credit = row[8];
-          if (typeof credit === "number" && credit > 0) return "green";
-          if (typeof debit === "number" && debit > 0) return "red";
+          if (typeof credit === "number" && credit !== 0) return "green";
+          if (typeof debit === "number" && debit !== 0) return "red";
           return null;
         }}
       />
@@ -619,21 +1061,6 @@ export function CFRTab({ data }: { data: ProjectPageData }) {
   const { divisions, bidLineItems, transactions, receivedFunds } = data;
   const { role } = useRole();
 
-  const [summarySheet, setSummarySheet] = React.useState<(string | number | boolean | null)[][] | null>(null);
-  const [bidSheet, setBidSheet] = React.useState<(string | number | boolean | null)[][] | null>(null);
-  const [detailSheet, setDetailSheet] = React.useState<(string | number | boolean | null)[][] | null>(null);
-
-  React.useEffect(() => {
-    Promise.all([
-      fetch("/cfr-xlsx/cfr_Summary.json").then((r) => r.json()),
-      fetch("/cfr-xlsx/cfr_Bid.json").then((r) => r.json()),
-      fetch("/cfr-xlsx/cfr_Detail.json").then((r) => r.json()),
-    ]).then(([s, b, d]) => {
-      setSummarySheet(s);
-      setBidSheet(b);
-      setDetailSheet(d);
-    }).catch(() => {});
-  }, []);
 
   if (role === "owner") {
     return (
@@ -656,7 +1083,7 @@ export function CFRTab({ data }: { data: ProjectPageData }) {
   const remaining = totals.scheduled - totals.gross;
 
   return (
-    <main className="w-full px-6 py-8">
+    <main className="w-full min-w-0 px-6 py-8">
       <div className="flex items-end justify-between gap-6 flex-wrap">
         <div>
           <div className="text-[11px] uppercase tracking-[0.18em] font-semibold text-boulder-600">Cost-to-Finish Report</div>
@@ -674,46 +1101,31 @@ export function CFRTab({ data }: { data: ProjectPageData }) {
         <TabsList>
           <TabsTrigger value="summary">Summary</TabsTrigger>
           <TabsTrigger value="bid">Bid</TabsTrigger>
+          <TabsTrigger value="simplified">Simplified</TabsTrigger>
           <TabsTrigger value="detail">Detail</TabsTrigger>
+          {["contractor_admin","contractor_pm"].includes(role) && (
+            <TabsTrigger value="manage">Manage</TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="summary">
-          {summarySheet ? (
-            <XlsxSheet
-              data={summarySheet}
-              title="AIA Summary"
-              boldRows={[1, 3, 4, 23]}
-              sectionRows={[0]}
-              mergeRows={[2]}
-              rawNumberCols={[0]}
-              rowAccentFn={(rIdx, row) => {
-                // data rows are indexes 5–22 (division rows)
-                if (rIdx < 5 || rIdx > 22) return null;
-                const netSpend = row[5];
-                const netReceived = row[6];
-                if (typeof netSpend !== "number" || typeof netReceived !== "number") return null;
-                return netReceived >= netSpend ? "green" : "red";
-              }}
-            />
-          ) : (
-            <div className="rounded-xl border border-neutral-200 bg-white p-8 text-center text-sm text-neutral-500">Loading…</div>
-          )}
+          <CFRSummaryDB data={data} />
         </TabsContent>
 
         <TabsContent value="bid">
-          {bidSheet ? (
-            <BidSheetView sheet={bidSheet} />
-          ) : (
-            <div className="rounded-xl border border-neutral-200 bg-white p-8 text-center text-sm text-neutral-500">Loading…</div>
-          )}
+          <CFRBidDB data={data} />
         </TabsContent>
 
-        <TabsContent value="detail">
-          {detailSheet ? (
-            <DetailSheetView sheet={detailSheet} />
-          ) : (
-            <div className="rounded-xl border border-neutral-200 bg-white p-8 text-center text-sm text-neutral-500">Loading…</div>
-          )}
+        <TabsContent value="simplified" forceMount className="data-[state=inactive]:hidden">
+          <CFRDetailDB data={data} simplified />
+        </TabsContent>
+
+        <TabsContent value="detail" forceMount className="data-[state=inactive]:hidden">
+          <CFRDetailDB data={data} />
+        </TabsContent>
+
+        <TabsContent value="manage">
+          <CFRManageView data={data} />
         </TabsContent>
 
       </Tabs>
@@ -724,8 +1136,18 @@ export function CFRTab({ data }: { data: ProjectPageData }) {
 // ── Budget ────────────────────────────────────────────────────────────────────
 
 export function BudgetTab({ data }: { data: ProjectPageData }) {
-  const { draws, drawLineItems, divisions, bidLineItems, project } = data;
+  const { draws, drawLineItems, divisions, bidLineItems, project, organizations, changeOrders } = data;
   const latestDraw = draws[0] ?? null;
+  const [bidFilter, setBidFilter] = React.useState<string>("all");
+
+  const orgMap = new Map(organizations.map((o) => [o.id, o]));
+  const ownerOrg = orgMap.get(project.ownerOrgId);
+  const contractorOrg = orgMap.get(project.contractorOrgId);
+  const architectOrg = orgMap.get(project.architectOrgId);
+
+  const coApproved = changeOrders.filter((c) => c.status === "approved");
+  const coAdditions = coApproved.filter((c) => c.amountCents > 0).reduce((s, c) => s + c.amountCents, 0);
+  const coDeductions = coApproved.filter((c) => c.amountCents < 0).reduce((s, c) => s + Math.abs(c.amountCents), 0);
 
   return (
     <main className="max-w-7xl mx-auto px-6 py-8">
@@ -749,30 +1171,183 @@ export function BudgetTab({ data }: { data: ProjectPageData }) {
           {!latestDraw ? (
             <div className="rounded-xl border border-neutral-200 bg-white p-8 text-center text-sm text-neutral-500">No draws yet.</div>
           ) : (
-            <div className="rounded-xl border border-neutral-200 bg-white overflow-hidden max-w-2xl">
-              <div className="px-5 py-4 border-b border-neutral-100 bg-neutral-50">
-                <div className="text-[10px] uppercase tracking-wider font-bold text-neutral-400">AIA Document G702</div>
-                <div className="mt-0.5 font-display font-bold text-lg text-neutral-950">Application and Certificate for Payment</div>
+            <div className="rounded-xl border-2 border-neutral-900 bg-white overflow-hidden font-serif text-[13px] text-neutral-900">
+              {/* Title bar */}
+              <div className="border-b-2 border-neutral-900 px-5 py-3 flex items-baseline justify-between">
+                <div className="font-bold text-[15px] uppercase tracking-wide">Application and Certification for Payment</div>
+                <div className="italic text-[12px] text-neutral-600">AIA Document G702</div>
               </div>
-              <div className="divide-y divide-neutral-100">
-                {[
-                  { label: "1. Original Contract Sum", value: latestDraw.line1ContractSumCents, highlight: false },
-                  { label: "2. Net Change by Change Orders", value: latestDraw.line2NetCoCents, highlight: false },
-                  { label: "3. Contract Sum to Date (1+2)", value: latestDraw.line3ContractSumToDateCents, highlight: false },
-                  { label: "4. Total Completed & Stored to Date", value: latestDraw.line4CompletedStoredCents, highlight: false },
-                  { label: "5. Retainage", value: latestDraw.line5RetainageCents, highlight: false, indent: true, muted: true },
-                  { label: "6. Total Earned Less Retainage (4−5)", value: latestDraw.line6EarnedLessRetainageCents, highlight: false },
-                  { label: "7. Less Previous Certificates for Payment", value: latestDraw.line7LessPreviousCents, highlight: false, muted: true },
-                  { label: "8. Current Payment Due", value: latestDraw.line8CurrentPaymentDueCents, highlight: true },
-                  { label: "9. Balance to Finish, Including Retainage (3−6)", value: latestDraw.line9BalanceToFinishCents, highlight: false },
-                ].map(({ label, value, highlight, indent, muted }) => (
-                  <div key={label} className={cn("flex items-center justify-between gap-4 px-5 py-3", highlight && "bg-boulder-50")}>
-                    <span className={cn("text-sm", indent && "pl-4", muted ? "text-neutral-500" : highlight ? "font-semibold text-boulder-700" : "text-neutral-700")}>{label}</span>
-                    <span className={cn("text-sm tabular font-semibold shrink-0", muted ? "text-neutral-500" : highlight ? "text-boulder-700 text-base" : "text-neutral-950")}>
-                      {formatCurrency(value ?? 0)}
-                    </span>
+
+              {/* Header info block */}
+              <div className="grid grid-cols-12 border-b-2 border-neutral-900">
+                <div className="col-span-4 p-3 border-r border-neutral-300">
+                  <div className="font-bold text-[11px] uppercase">To Owner:</div>
+                  <div className="mt-1">{ownerOrg?.name || "—"}</div>
+                  {ownerOrg?.address && <div className="text-[11px] text-neutral-700">{ownerOrg.address}</div>}
+                </div>
+                <div className="col-span-3 p-3 border-r border-neutral-300">
+                  <div className="font-bold text-[11px] uppercase">Project:</div>
+                  <div className="mt-1">{project.name}</div>
+                  {project.address && <div className="text-[11px] text-neutral-700">{project.address}</div>}
+                </div>
+                <div className="col-span-3 p-3 border-r border-neutral-300 space-y-1">
+                  <div className="flex justify-between"><span className="font-bold text-[11px] uppercase">Application No:</span><span>{latestDraw.number}</span></div>
+                  <div className="flex justify-between"><span className="font-bold text-[11px] uppercase">Period To:</span><span>{new Date(latestDraw.periodEndDate).toLocaleDateString("en-US")}</span></div>
+                  <div className="flex justify-between"><span className="font-bold text-[11px] uppercase">Contract Date:</span><span>{new Date(project.contractDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</span></div>
+                </div>
+                <div className="col-span-2 p-3">
+                  <div className="font-bold text-[11px] uppercase">Distribution to:</div>
+                  <div className="mt-1 space-y-0.5 text-[11px]">
+                    <div><span className="inline-block w-4">X</span>Owner</div>
+                    <div><span className="inline-block w-4">&nbsp;</span>Architect</div>
+                    <div><span className="inline-block w-4">&nbsp;</span>Contractor</div>
                   </div>
-                ))}
+                </div>
+                <div className="col-span-6 p-3 border-t border-neutral-300 border-r">
+                  <div className="font-bold text-[11px] uppercase">From Contractor:</div>
+                  <div className="mt-1">{contractorOrg?.name || "—"}</div>
+                  {contractorOrg?.address && <div className="text-[11px] text-neutral-700">{contractorOrg.address}</div>}
+                </div>
+                <div className="col-span-6 p-3 border-t border-neutral-300">
+                  <div className="font-bold text-[11px] uppercase">Via Architect:</div>
+                  <div className="mt-1">{architectOrg?.name || "—"}</div>
+                  {architectOrg?.address && <div className="text-[11px] text-neutral-700">{architectOrg.address}</div>}
+                </div>
+                <div className="col-span-12 p-3 border-t border-neutral-300">
+                  <span className="font-bold text-[11px] uppercase">Contract For:</span>
+                  <span className="ml-2">{project.projectNumber || "—"}</span>
+                </div>
+              </div>
+
+              {/* Main body: two columns */}
+              <div className="grid grid-cols-12">
+                {/* Left column: Contractor's Application */}
+                <div className="col-span-7 border-r-2 border-neutral-900 p-4">
+                  <div className="font-bold uppercase text-[14px] mb-1">Contractor&apos;s Application for Payment</div>
+                  <div className="text-[11px] text-neutral-700 mb-3">
+                    Application is made for payment, as shown below, in connection with the Contract.<br />
+                    Continuation Sheet, AIA Document G703, is attached.
+                  </div>
+                  <table className="w-full text-[12px]">
+                    <tbody>
+                      {[
+                        { n: "1.", label: "Original Contract Sum", value: latestDraw.line1ContractSumCents, underline: true },
+                        { n: "2.", label: "Net change by Change Orders", value: latestDraw.line2NetCoCents, underline: true },
+                        { n: "3.", label: "Contract Sum to Date (Line 1 ± 2)", value: latestDraw.line3ContractSumToDateCents, underline: true, bold: true },
+                        { n: "4.", label: "Total Completed & Stored to Date (Column G on G703)", value: latestDraw.line4CompletedStoredCents, underline: true, bold: true, twoLine: true },
+                        { n: "5.", label: "Retainage:", header: true },
+                        { n: "", label: "a. ___% of Completed Work", value: null, sub: true, amount: "$" },
+                        { n: "", label: "(Column D + E on G703)", value: null, sub: true, caption: true },
+                        { n: "", label: "b. ___% of Stored Material", value: null, sub: true, amount: "$" },
+                        { n: "", label: "(Column F on G703)", value: null, sub: true, caption: true },
+                        { n: "", label: "Total Retainage (Lines 5a + 5b or", value: null, sub: true },
+                        { n: "", label: "Total in Column I of G703)", value: latestDraw.line5RetainageCents, sub: true, underline: true, amount: "$" },
+                        { n: "6.", label: "Total Earned Less Retainage (Line 4 Less Line 5 Total)", value: latestDraw.line6EarnedLessRetainageCents, underline: true, amount: "$" },
+                        { n: "7.", label: "Less Previous Certificates for Payment (Line 6 from prior Certificate)", value: latestDraw.line7LessPreviousCents, underline: true, amount: "$", twoLine: true },
+                        { n: "8.", label: "Current Payment Due", value: latestDraw.line8CurrentPaymentDueCents, underline: true, bold: true, highlight: true, amount: "$" },
+                        { n: "9.", label: "Balance to Finish, Including Retainage (Line 3 less Line 6)", value: latestDraw.line9BalanceToFinishCents, underline: true, amount: "$", twoLine: true },
+                      ].map((row, i) => (
+                        <tr key={i} className={cn(row.highlight && "bg-yellow-50")}>
+                          <td className={cn("align-top py-0.5 pr-2 w-8", row.bold && "font-bold", row.caption && "text-[10px] text-neutral-500")}>{row.n}</td>
+                          <td className={cn("align-top py-0.5 pr-2", row.bold && "font-bold", row.sub && "pl-4", row.caption && "text-[10px] text-neutral-500", row.header && "font-bold")}>{row.label}</td>
+                          <td className={cn("align-top py-0.5 text-right tabular-nums whitespace-nowrap", row.bold && "font-bold", row.underline && row.value != null && "border-b border-neutral-400")}>
+                            {row.value != null ? (
+                              <>
+                                {row.amount && <span className="mr-2 text-neutral-500">{row.amount}</span>}
+                                {formatCurrency(row.value)}
+                              </>
+                            ) : row.amount ? <span className="text-neutral-500">{row.amount}</span> : null}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  {/* Change Order Summary table */}
+                  <table className="w-full text-[11px] mt-5 border border-neutral-900">
+                    <thead>
+                      <tr className="bg-neutral-100 border-b border-neutral-900">
+                        <th className="text-left px-2 py-1 border-r border-neutral-900 font-bold uppercase">Change Order Summary</th>
+                        <th className="text-right px-2 py-1 border-r border-neutral-900 font-bold uppercase">Additions</th>
+                        <th className="text-right px-2 py-1 font-bold uppercase">Deductions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="border-b border-neutral-300">
+                        <td className="px-2 py-1 border-r border-neutral-300">Total changes approved<br />in previous months by Owner</td>
+                        <td className="px-2 py-1 text-right border-r border-neutral-300 tabular-nums">{formatCurrency(coAdditions)}</td>
+                        <td className="px-2 py-1 text-right tabular-nums">{formatCurrency(coDeductions)}</td>
+                      </tr>
+                      <tr className="border-b border-neutral-300">
+                        <td className="px-2 py-1 border-r border-neutral-300">Total approved this Month</td>
+                        <td className="px-2 py-1 text-right border-r border-neutral-300 tabular-nums">$0.00</td>
+                        <td className="px-2 py-1 text-right tabular-nums">$0.00</td>
+                      </tr>
+                      <tr className="border-b-2 border-neutral-900 font-bold">
+                        <td className="px-2 py-1 border-r border-neutral-300">Totals</td>
+                        <td className="px-2 py-1 text-right border-r border-neutral-300 tabular-nums">{formatCurrency(coAdditions)}</td>
+                        <td className="px-2 py-1 text-right tabular-nums">{formatCurrency(coDeductions)}</td>
+                      </tr>
+                      <tr>
+                        <td className="px-2 py-1 border-r border-neutral-300 font-semibold">Net Changes by Change Order</td>
+                        <td colSpan={2} className="px-2 py-1 text-right tabular-nums font-bold">{formatCurrency(coAdditions - coDeductions)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Right column: Certifications */}
+                <div className="col-span-5 p-4">
+                  <div className="text-[11px] text-neutral-700 leading-snug">
+                    The undersigned Contractor certifies that to the best of the Contractor&apos;s knowledge,
+                    information and belief the Work covered by this Application for Payment has been
+                    completed in accordance with the Contract Documents, that all amounts have been paid by
+                    the Contractor for Work for which previous Certificates for Payment were issued and
+                    payments received from the Owner, and that current payment shown herein is now due.
+                  </div>
+                  <div className="mt-6 text-[11px] space-y-4">
+                    <div>Contractor:</div>
+                    <div className="flex gap-4"><span>By: <span className="inline-block border-b border-neutral-400 w-40 ml-1">&nbsp;</span></span><span>Date: <span className="inline-block border-b border-neutral-400 w-32 ml-1">&nbsp;</span></span></div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>State of:</div>
+                      <div>County of:</div>
+                    </div>
+                    <div>Subscribed and sworn to before me this <span className="inline-block border-b border-neutral-400 w-16">&nbsp;</span> day of <span className="inline-block border-b border-neutral-400 w-24">&nbsp;</span></div>
+                    <div>Notary Public: <span className="inline-block border-b border-neutral-400 w-40">&nbsp;</span></div>
+                    <div>My Commission expires: <span className="inline-block border-b border-neutral-400 w-32">&nbsp;</span></div>
+                  </div>
+
+                  <div className="mt-6 pt-4 border-t-2 border-neutral-900">
+                    <div className="font-bold uppercase text-[14px] mb-1">Architect&apos;s Certificate for Payment</div>
+                    <div className="text-[11px] text-neutral-700 leading-snug">
+                      In accordance with the Contract Documents, based on on-site observations and the data
+                      comprising the application, the Architect certifies to the Owner that to the best of the
+                      Architect&apos;s knowledge, information and belief the Work has progressed as indicated,
+                      the quality of the Work is in accordance with the Contract Documents, and the Contractor
+                      is entitled to payment of the AMOUNT CERTIFIED.
+                    </div>
+                    <div className="mt-3 flex items-center gap-2">
+                      <span className="font-bold text-[11px] uppercase">Amount Certified</span>
+                      <span className="flex-1 border-b border-neutral-400 text-right pr-2 tabular-nums font-bold">$ {formatCurrency(latestDraw.line8CurrentPaymentDueCents ?? 0).replace("$", "")}</span>
+                    </div>
+                    <div className="mt-3 text-[10px] italic text-neutral-600 leading-snug">
+                      (Attach explanation if amount certified differs from the amount applied. Initial all figures on this
+                      Application and the Continuation Sheet that are changed to conform with the amount certified.)
+                    </div>
+                    <div className="mt-3 text-[11px]">Architect:</div>
+                    <div className="mt-2 flex gap-4 text-[11px]"><span>By: <span className="inline-block border-b border-neutral-400 w-40 ml-1">&nbsp;</span></span><span>Date: <span className="inline-block border-b border-neutral-400 w-32 ml-1">&nbsp;</span></span></div>
+                    <div className="mt-3 text-[10px] text-neutral-600 leading-snug">
+                      This Certificate is not negotiable. The AMOUNT CERTIFIED is payable only to the
+                      Contractor named herein. Issuance, payment and acceptance of payment are without
+                      prejudice to any rights of the Owner or Contractor under this Contract.
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="border-t-2 border-neutral-900 px-3 py-2 text-[9px] text-neutral-600 bg-neutral-50">
+                AIA DOCUMENT G702 · APPLICATION AND CERTIFICATION FOR PAYMENT · 1992 EDITION · AIA® · © 1992 · THE AMERICAN INSTITUTE OF ARCHITECTS, 1735 NEW YORK AVE, N.W., WASHINGTON, DC 20006-5292
               </div>
             </div>
           )}
@@ -780,88 +1355,135 @@ export function BudgetTab({ data }: { data: ProjectPageData }) {
 
         {/* ── G703 ── */}
         <TabsContent value="g703">
-          <div className="rounded-xl border border-neutral-200 bg-white overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm tabular">
-                <thead className="bg-neutral-50 text-[10px] uppercase tracking-wider font-semibold text-neutral-500">
-                  <tr>
-                    <th className="text-left py-3 pl-5 pr-2 w-10">Item</th>
-                    <th className="text-left py-3 px-2 min-w-[180px]">Description of Work</th>
-                    <th className="text-right py-3 px-2">C — Scheduled Value</th>
-                    <th className="text-right py-3 px-2">D — From Previous</th>
-                    <th className="text-right py-3 px-2">E — This Period</th>
-                    <th className="text-right py-3 px-2">F — Materials Stored</th>
-                    <th className="text-right py-3 px-2">G — Total Completed</th>
-                    <th className="text-right py-3 px-2">G ÷ C</th>
-                    <th className="text-right py-3 px-2">H — Balance</th>
-                    <th className="text-right py-3 pl-2 pr-5 text-amber-500">I — Retainage</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {divisions.map((div) => {
-                    const li = drawLineItems.find((l) => l.divisionId === div.id);
-                    const colC = li?.colCScheduledValueCents ?? div.scheduledValueCents;
-                    const colD = li?.colDFromPreviousCents ?? 0;
-                    const colE = li?.colEThisPeriodCents ?? 0;
-                    const colF = li?.colFMaterialsStoredCents ?? 0;
-                    const colG = li?.colGCompletedStoredCents ?? (colD + colE + colF);
-                    const colGPct = colC > 0 ? (colG / colC) * 100 : 0;
-                    const colH = li?.colHBalanceCents ?? Math.max(0, colC - colG);
-                    const colI = li?.colIRetainageCents ?? 0;
-                    return (
-                      <tr key={div.id} className="border-t border-neutral-100 hover:bg-neutral-50/60">
-                        <td className="py-2.5 pl-5 pr-2 text-neutral-400 font-medium">{div.number}</td>
-                        <td className="py-2.5 px-2 font-medium text-neutral-900">{div.name}</td>
-                        <td className="py-2.5 px-2 text-right">{formatCurrency(colC, { compact: true })}</td>
-                        <td className="py-2.5 px-2 text-right text-neutral-500">{formatCurrency(colD, { compact: true })}</td>
-                        <td className="py-2.5 px-2 text-right">{formatCurrency(colE, { compact: true })}</td>
-                        <td className="py-2.5 px-2 text-right text-neutral-500">{formatCurrency(colF, { compact: true })}</td>
-                        <td className="py-2.5 px-2 text-right font-semibold">{formatCurrency(colG, { compact: true })}</td>
-                        <td className="py-2.5 px-2 text-right">
-                          <span className={cn("text-xs font-semibold", colGPct >= 100 ? "text-emerald-600" : colGPct > 50 ? "text-boulder-600" : "text-neutral-500")}>
-                            {colGPct.toFixed(1)}%
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-2 text-right text-neutral-500">{formatCurrency(colH, { compact: true })}</td>
-                        <td className="py-2.5 pl-2 pr-5 text-right text-amber-700">{colI > 0 ? formatCurrency(colI, { compact: true }) : "—"}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t-2 border-neutral-300 bg-neutral-50 font-bold">
-                    <td colSpan={2} className="py-3 pl-5 pr-2 text-neutral-950">Totals</td>
-                    {(() => {
-                      const totC = divisions.reduce((s, div) => { const li = drawLineItems.find((l) => l.divisionId === div.id); return s + (li?.colCScheduledValueCents ?? div.scheduledValueCents); }, 0);
-                      const totD = drawLineItems.reduce((s, l) => s + l.colDFromPreviousCents, 0);
-                      const totE = drawLineItems.reduce((s, l) => s + l.colEThisPeriodCents, 0);
-                      const totF = drawLineItems.reduce((s, l) => s + l.colFMaterialsStoredCents, 0);
-                      const totG = drawLineItems.reduce((s, l) => s + l.colGCompletedStoredCents, 0);
-                      const totGPct = totC > 0 ? (totG / totC) * 100 : 0;
-                      const totH = drawLineItems.reduce((s, l) => s + l.colHBalanceCents, 0);
-                      const totI = drawLineItems.reduce((s, l) => s + l.colIRetainageCents, 0);
-                      return (<>
-                        <td className="py-3 px-2 text-right">{formatCurrency(totC, { compact: true })}</td>
-                        <td className="py-3 px-2 text-right text-neutral-500">{formatCurrency(totD, { compact: true })}</td>
-                        <td className="py-3 px-2 text-right">{formatCurrency(totE, { compact: true })}</td>
-                        <td className="py-3 px-2 text-right text-neutral-500">{formatCurrency(totF, { compact: true })}</td>
-                        <td className="py-3 px-2 text-right">{formatCurrency(totG, { compact: true })}</td>
-                        <td className="py-3 px-2 text-right text-boulder-600">{totGPct.toFixed(1)}%</td>
-                        <td className="py-3 px-2 text-right text-neutral-500">{formatCurrency(totH, { compact: true })}</td>
-                        <td className="py-3 pl-2 pr-5 text-right text-amber-700">{formatCurrency(totI, { compact: true })}</td>
-                      </>);
-                    })()}
-                  </tr>
-                </tfoot>
-              </table>
+          {!latestDraw ? (
+            <div className="rounded-xl border border-neutral-200 bg-white p-8 text-center text-sm text-neutral-500">No draws yet.</div>
+          ) : (
+            <div className="rounded-xl border-2 border-neutral-900 bg-white overflow-hidden font-serif text-neutral-900">
+              {/* Title bar */}
+              <div className="border-b-2 border-neutral-900 px-4 py-2 flex items-baseline justify-between">
+                <div className="font-bold text-[14px] uppercase tracking-wide">Continuation Sheet</div>
+                <div className="italic text-[11px] text-neutral-600">AIA Document G703</div>
+              </div>
+
+              {/* Header info block */}
+              <div className="grid grid-cols-12 border-b-2 border-neutral-900 text-[11px]">
+                <div className="col-span-7 p-3 border-r border-neutral-300 leading-snug">
+                  <div>AIA Document G702, APPLICATION AND CERTIFICATION FOR PAYMENT, containing</div>
+                  <div>Contractor&apos;s signed certification is attached.</div>
+                  <div>In tabulations below, amounts are stated to the nearest dollar.</div>
+                  <div>Use Column I on Contracts where variable retainage for line items may apply.</div>
+                </div>
+                <div className="col-span-5 p-3 space-y-1">
+                  <div className="flex justify-between"><span className="font-bold uppercase">Application No:</span><span>{latestDraw.number}</span></div>
+                  <div className="flex justify-between"><span className="font-bold uppercase">Application Date:</span><span>{new Date(latestDraw.periodEndDate).toLocaleDateString("en-US")}</span></div>
+                  <div className="flex justify-between"><span className="font-bold uppercase">Period To:</span><span>{new Date(latestDraw.periodEndDate).toLocaleDateString("en-US")}</span></div>
+                  <div className="flex justify-between"><span className="font-bold uppercase">Project No:</span><span>{project.projectNumber || "—"}</span></div>
+                </div>
+              </div>
+
+              {/* G703 table */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-[11px] tabular-nums border-collapse">
+                  <thead>
+                    <tr className="bg-neutral-100 border-b border-neutral-900">
+                      <th colSpan={3} className="border-r border-neutral-900 py-1 font-bold"></th>
+                      <th colSpan={2} className="border-r border-neutral-900 py-1 font-bold uppercase tracking-wide">Work Completed</th>
+                      <th colSpan={5} className="py-1"></th>
+                    </tr>
+                    <tr className="bg-neutral-50 border-b-2 border-neutral-900 align-bottom text-center text-[10px] font-bold uppercase">
+                      <th className="border-r border-neutral-900 px-1 py-1 w-10">A<br />Item No.</th>
+                      <th className="border-r border-neutral-900 px-2 py-1 text-left min-w-[180px]">B<br />Description of Work</th>
+                      <th className="border-r border-neutral-900 px-1 py-1">C<br />Scheduled Value</th>
+                      <th className="border-r border-neutral-300 px-1 py-1">D<br />From Previous Application<br />(D + E)</th>
+                      <th className="border-r border-neutral-900 px-1 py-1">E<br />This Period</th>
+                      <th className="border-r border-neutral-900 px-1 py-1">F<br />Materials Presently Stored<br />(Not in D or E)</th>
+                      <th className="border-r border-neutral-900 px-1 py-1">G<br />Total Completed and Stored to Date<br />(D + E + F)</th>
+                      <th className="border-r border-neutral-900 px-1 py-1">%<br />(G ÷ C)</th>
+                      <th className="border-r border-neutral-900 px-1 py-1">H<br />Balance to Finish<br />(C − G)</th>
+                      <th className="px-1 py-1">I<br />Retainage<br />(If Variable Rate)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {divisions.map((div) => {
+                      const li = drawLineItems.find((l) => l.divisionId === div.id);
+                      const colC = li?.colCScheduledValueCents ?? div.scheduledValueCents;
+                      const colD = li?.colDFromPreviousCents ?? 0;
+                      const colE = li?.colEThisPeriodCents ?? 0;
+                      const colF = li?.colFMaterialsStoredCents ?? 0;
+                      const colG = li?.colGCompletedStoredCents ?? (colD + colE + colF);
+                      const colGPct = colC > 0 ? (colG / colC) * 100 : 0;
+                      const colH = li?.colHBalanceCents ?? Math.max(0, colC - colG);
+                      const colI = li?.colIRetainageCents ?? 0;
+                      return (
+                        <tr key={div.id} className="border-b border-neutral-200">
+                          <td className="border-r border-neutral-300 px-1 py-1 text-center">{div.number}</td>
+                          <td className="border-r border-neutral-300 px-2 py-1 font-medium uppercase">{div.name}</td>
+                          <td className="border-r border-neutral-300 px-1 py-1 text-right">{formatCurrency(colC)}</td>
+                          <td className="border-r border-neutral-300 px-1 py-1 text-right">{colD > 0 ? formatCurrency(colD) : "-"}</td>
+                          <td className="border-r border-neutral-300 px-1 py-1 text-right">{colE > 0 ? formatCurrency(colE) : "-"}</td>
+                          <td className="border-r border-neutral-300 px-1 py-1 text-right">{colF > 0 ? formatCurrency(colF) : "-"}</td>
+                          <td className="border-r border-neutral-300 px-1 py-1 text-right font-semibold">{colG > 0 ? formatCurrency(colG) : "-"}</td>
+                          <td className="border-r border-neutral-300 px-1 py-1 text-right">{colGPct.toFixed(1)}%</td>
+                          <td className="border-r border-neutral-300 px-1 py-1 text-right">{colH !== 0 ? formatCurrency(colH) : "-"}</td>
+                          <td className="px-1 py-1 text-right">{colI > 0 ? formatCurrency(colI) : "-"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 border-neutral-900 bg-neutral-50 font-bold">
+                      <td className="border-r border-neutral-300 px-1 py-2"></td>
+                      <td className="border-r border-neutral-300 px-2 py-2 uppercase">Grand Total</td>
+                      {(() => {
+                        const totC = divisions.reduce((s, div) => { const li = drawLineItems.find((l) => l.divisionId === div.id); return s + (li?.colCScheduledValueCents ?? div.scheduledValueCents); }, 0);
+                        const totD = drawLineItems.reduce((s, l) => s + l.colDFromPreviousCents, 0);
+                        const totE = drawLineItems.reduce((s, l) => s + l.colEThisPeriodCents, 0);
+                        const totF = drawLineItems.reduce((s, l) => s + l.colFMaterialsStoredCents, 0);
+                        const totG = drawLineItems.reduce((s, l) => s + l.colGCompletedStoredCents, 0);
+                        const totGPct = totC > 0 ? (totG / totC) * 100 : 0;
+                        const totH = drawLineItems.reduce((s, l) => s + l.colHBalanceCents, 0);
+                        const totI = drawLineItems.reduce((s, l) => s + l.colIRetainageCents, 0);
+                        return (<>
+                          <td className="border-r border-neutral-300 px-1 py-2 text-right">{formatCurrency(totC)}</td>
+                          <td className="border-r border-neutral-300 px-1 py-2 text-right">{formatCurrency(totD)}</td>
+                          <td className="border-r border-neutral-300 px-1 py-2 text-right">{formatCurrency(totE)}</td>
+                          <td className="border-r border-neutral-300 px-1 py-2 text-right">{totF > 0 ? formatCurrency(totF) : "-"}</td>
+                          <td className="border-r border-neutral-300 px-1 py-2 text-right">{formatCurrency(totG)}</td>
+                          <td className="border-r border-neutral-300 px-1 py-2 text-right">{totGPct.toFixed(1)}%</td>
+                          <td className="border-r border-neutral-300 px-1 py-2 text-right">{formatCurrency(totH)}</td>
+                          <td className="px-1 py-2 text-right">{formatCurrency(totI)}</td>
+                        </>);
+                      })()}
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              {/* Footer */}
+              <div className="border-t-2 border-neutral-900 px-3 py-2 text-[9px] text-neutral-600 bg-neutral-50 text-center italic">
+                Users may obtain validation of this document by requesting of the license a completed AIA Document D401 - Certification of Document&apos;s Authenticity
+              </div>
             </div>
-          </div>
+          )}
         </TabsContent>
 
         {/* ── Bid ── */}
         <TabsContent value="bid">
           <div className="space-y-5">
-            {divisions.map((div) => {
+            <div className="flex items-center gap-3">
+              <label className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">Division</label>
+              <select
+                value={bidFilter}
+                onChange={(e) => setBidFilter(e.target.value)}
+                className="text-sm border border-neutral-300 rounded-lg px-3 py-1.5 bg-white text-neutral-900 focus:outline-none focus:ring-2 focus:ring-boulder-400"
+              >
+                <option value="all">All divisions</option>
+                {divisions.map((d) => (
+                  <option key={d.id} value={d.id}>{d.number}. {d.name}</option>
+                ))}
+              </select>
+            </div>
+            {(bidFilter === "all" ? divisions : divisions.filter((d) => d.id === bidFilter)).map((div) => {
               const items = bidLineItems.filter((b) => b.divisionId === div.id);
               if (!items.length) return null;
               const totalBudget = items.reduce((s, b) => s + b.budgetCents, 0);
@@ -1379,9 +2001,22 @@ function DrawDetailView({ project, draw, drawLineItems, divisions, onBack }: {
 // ── Transactions ──────────────────────────────────────────────────────────────
 
 export function TransactionsTab({ data }: { data: ProjectPageData }) {
-  const { project, divisions, transactions } = data;
+  const { project, divisions, transactions, draws } = data;
   const { role } = useRole();
   const [query, setQuery] = React.useState("");
+  const [filterDivision, setFilterDivision] = React.useState<string>("all");
+  const [filterDraw, setFilterDraw] = React.useState<string>("all");
+  const [filterStatus, setFilterStatus] = React.useState<string>("all");
+  const [filterType, setFilterType] = React.useState<string>("all");
+  const [filterVendor, setFilterVendor] = React.useState<string>("all");
+  const [dateFrom, setDateFrom] = React.useState("");
+  const [dateTo, setDateTo] = React.useState("");
+
+  const vendorOptions = React.useMemo(() => {
+    const set = new Set<string>();
+    for (const t of transactions) if (t.vendor) set.add(t.vendor);
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [transactions]);
   const [isPending, startTransition] = useTransition();
   const [showNew, setShowNew] = React.useState(false);
   const [form, setForm] = React.useState({ divisionId: divisions[0]?.id ?? "", vendor: "", description: "", date: "", amountDollars: "", type: "invoice" as const });
@@ -1397,17 +2032,30 @@ export function TransactionsTab({ data }: { data: ProjectPageData }) {
     );
   }
 
-  const filtered = transactions.filter((t) =>
-    t.vendor.toLowerCase().includes(query.toLowerCase()) ||
-    t.description.toLowerCase().includes(query.toLowerCase())
-  );
+  const q = query.toLowerCase();
+  const filtered = transactions.filter((t) => {
+    if (q && !t.vendor.toLowerCase().includes(q) && !t.description.toLowerCase().includes(q) && !(t.counterparty ?? "").toLowerCase().includes(q)) return false;
+    if (filterDivision !== "all" && t.divisionId !== filterDivision) return false;
+    if (filterDraw !== "all" && String(t.drawNumber ?? "") !== filterDraw) return false;
+    if (filterStatus !== "all" && t.paymentStatus !== filterStatus) return false;
+    if (filterType !== "all" && t.type !== filterType) return false;
+    if (filterVendor !== "all" && t.vendor !== filterVendor) return false;
+    if (dateFrom && (t.date ?? "") < dateFrom) return false;
+    if (dateTo && (t.date ?? "") > dateTo) return false;
+    return true;
+  });
   const total = filtered.reduce((s, t) => s + t.amountCents, 0);
 
   const PAGE_SIZE = 50;
   const [page, setPage] = React.useState(1);
-  React.useEffect(() => { setPage(1); }, [query]);
+  React.useEffect(() => { setPage(1); }, [query, filterDivision, filterDraw, filterStatus, filterType, filterVendor, dateFrom, dateTo]);
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  function resetFilters() {
+    setQuery(""); setFilterDivision("all"); setFilterDraw("all"); setFilterStatus("all"); setFilterType("all"); setFilterVendor("all"); setDateFrom(""); setDateTo("");
+  }
+  const hasFilters = query || filterDivision !== "all" || filterDraw !== "all" || filterStatus !== "all" || filterType !== "all" || filterVendor !== "all" || dateFrom || dateTo;
 
   function handleCreate() {
     startTransition(async () => {
@@ -1446,6 +2094,65 @@ export function TransactionsTab({ data }: { data: ProjectPageData }) {
           <Button variant="outline" size="sm"><Download className="h-4 w-4" />Export</Button>
           {permissions.canEditDraw(role) && (
             <Button size="sm" onClick={() => setShowNew(true)}><Plus className="h-4 w-4" />Add transaction</Button>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-xl border border-neutral-200 bg-white p-3">
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="flex flex-col">
+            <label className="text-[10px] uppercase tracking-wider font-semibold text-neutral-500 mb-1">Division</label>
+            <select value={filterDivision} onChange={(e) => setFilterDivision(e.target.value)} className="text-xs border border-neutral-300 rounded-md px-2 py-1.5 bg-white min-w-[140px]">
+              <option value="all">All</option>
+              {divisions.map((d) => <option key={d.id} value={d.id}>{d.number}. {d.name}</option>)}
+            </select>
+          </div>
+          <div className="flex flex-col">
+            <label className="text-[10px] uppercase tracking-wider font-semibold text-neutral-500 mb-1">Draw</label>
+            <select value={filterDraw} onChange={(e) => setFilterDraw(e.target.value)} className="text-xs border border-neutral-300 rounded-md px-2 py-1.5 bg-white">
+              <option value="all">All</option>
+              {draws.map((d) => <option key={d.id} value={String(d.number)}>Draw {d.number}</option>)}
+            </select>
+          </div>
+          <div className="flex flex-col">
+            <label className="text-[10px] uppercase tracking-wider font-semibold text-neutral-500 mb-1">Type</label>
+            <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="text-xs border border-neutral-300 rounded-md px-2 py-1.5 bg-white">
+              <option value="all">All</option>
+              <option value="invoice">Invoice</option>
+              <option value="payroll">Payroll</option>
+              <option value="expense">Expense</option>
+              <option value="change_order_cost">Change order</option>
+              <option value="credit">Credit</option>
+            </select>
+          </div>
+          <div className="flex flex-col">
+            <label className="text-[10px] uppercase tracking-wider font-semibold text-neutral-500 mb-1">Status</label>
+            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="text-xs border border-neutral-300 rounded-md px-2 py-1.5 bg-white">
+              <option value="all">All</option>
+              <option value="pending">Pending</option>
+              <option value="paid">Paid</option>
+              <option value="voided">Voided</option>
+            </select>
+          </div>
+          <div className="flex flex-col">
+            <label className="text-[10px] uppercase tracking-wider font-semibold text-neutral-500 mb-1">Vendor</label>
+            <select value={filterVendor} onChange={(e) => setFilterVendor(e.target.value)} className="text-xs border border-neutral-300 rounded-md px-2 py-1.5 bg-white max-w-[200px]">
+              <option value="all">All ({vendorOptions.length})</option>
+              {vendorOptions.map((v) => <option key={v} value={v}>{v}</option>)}
+            </select>
+          </div>
+          <div className="flex flex-col">
+            <label className="text-[10px] uppercase tracking-wider font-semibold text-neutral-500 mb-1">Date from</label>
+            <Input type="date" className="h-8 text-xs" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+          </div>
+          <div className="flex flex-col">
+            <label className="text-[10px] uppercase tracking-wider font-semibold text-neutral-500 mb-1">Date to</label>
+            <Input type="date" className="h-8 text-xs" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+          </div>
+          {hasFilters && (
+            <Button variant="ghost" size="sm" onClick={resetFilters} className="h-8 text-xs">
+              <X className="h-3.5 w-3.5 mr-1" /> Reset
+            </Button>
           )}
         </div>
       </div>
@@ -1533,21 +2240,25 @@ export function TransactionsTab({ data }: { data: ProjectPageData }) {
               })}
             </tbody>
           </table>
-          {pageCount > 1 && (
-            <div className="flex items-center justify-between px-5 py-3 border-t border-neutral-100 text-xs tabular">
-              <span className="text-neutral-500">
-                Page {page} of {pageCount} · rows {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
-              </span>
-              <div className="flex gap-1">
-                <Button variant="outline" size="sm" onClick={() => setPage(1)} disabled={page === 1}>« First</Button>
-                <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>‹ Prev</Button>
-                <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(pageCount, p + 1))} disabled={page === pageCount}>Next ›</Button>
-                <Button variant="outline" size="sm" onClick={() => setPage(pageCount)} disabled={page === pageCount}>Last »</Button>
-              </div>
-            </div>
-          )}
         </div>
       </div>
+
+      {pageCount > 1 && (
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 bg-white/95 backdrop-blur border border-neutral-200 rounded-full shadow-lg">
+          <div className="flex items-center gap-4 pl-5 pr-2.5 py-2 text-sm tabular">
+            <span className="text-neutral-600 whitespace-nowrap font-medium">
+              Page {page}/{pageCount} · {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
+            </span>
+            <div className="flex gap-1">
+              <Button variant="ghost" size="sm" onClick={() => setPage(1)} disabled={page === 1} className="h-9 px-3">« First</Button>
+              <Button variant="ghost" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="h-9 px-3">‹ Prev</Button>
+              <Button variant="ghost" size="sm" onClick={() => setPage((p) => Math.min(pageCount, p + 1))} disabled={page === pageCount} className="h-9 px-3">Next ›</Button>
+              <Button variant="ghost" size="sm" onClick={() => setPage(pageCount)} disabled={page === pageCount} className="h-9 px-3">Last »</Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {pageCount > 1 && <div className="h-20" />}
     </main>
   );
 }
@@ -1762,17 +2473,29 @@ export function SettingsTab({ data }: { data: ProjectPageData }) {
   const [address, setAddress] = React.useState(project.address);
   const [contractDate, setContractDate] = React.useState(project.contractDate);
   const [compact, setCompact] = React.useState(false);
+  const [fontSize, setFontSize] = React.useState(14);
 
   React.useEffect(() => {
     const saved = typeof window !== "undefined" && localStorage.getItem("boulder-compact") === "1";
     setCompact(saved);
     document.documentElement.classList.toggle("compact", saved);
+    const savedSize = typeof window !== "undefined" ? Number(localStorage.getItem("boulder-font-size")) : 0;
+    if (savedSize >= 10 && savedSize <= 20) {
+      setFontSize(savedSize);
+      document.documentElement.style.fontSize = `${savedSize}px`;
+    }
   }, []);
 
   function toggleCompact(next: boolean) {
     setCompact(next);
     localStorage.setItem("boulder-compact", next ? "1" : "0");
     document.documentElement.classList.toggle("compact", next);
+  }
+
+  function changeFontSize(size: number) {
+    setFontSize(size);
+    localStorage.setItem("boulder-font-size", String(size));
+    document.documentElement.style.fontSize = `${size}px`;
   }
 
   const owner = organizations.find((o) => o.id === project.ownerOrgId);
@@ -1861,28 +2584,57 @@ export function SettingsTab({ data }: { data: ProjectPageData }) {
 
         <div className="rounded-xl border border-neutral-200 bg-white p-6">
           <h2 className="font-display font-bold text-base text-neutral-950">Display</h2>
-          <div className="mt-5 flex items-center justify-between gap-4">
-            <div className="min-w-0">
-              <div className="text-sm font-medium text-neutral-900">Compact view</div>
-              <p className="mt-0.5 text-xs text-neutral-500">Reduces padding and font sizes across the UI for denser data tables.</p>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={compact}
-              onClick={() => toggleCompact(!compact)}
-              className={cn(
-                "relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors",
-                compact ? "bg-boulder-500" : "bg-neutral-300",
-              )}
-            >
-              <span
+          <div className="mt-5 space-y-5">
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-neutral-900">Compact view</div>
+                <p className="mt-0.5 text-xs text-neutral-500">Reduces padding and font sizes across the UI for denser data tables.</p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={compact}
+                onClick={() => toggleCompact(!compact)}
                 className={cn(
-                  "inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform",
-                  compact ? "translate-x-5" : "translate-x-0.5",
+                  "relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors",
+                  compact ? "bg-boulder-500" : "bg-neutral-300",
                 )}
-              />
-            </button>
+              >
+                <span
+                  className={cn(
+                    "inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform",
+                    compact ? "translate-x-5" : "translate-x-0.5",
+                  )}
+                />
+              </button>
+            </div>
+            <div className="border-t border-neutral-100 pt-5">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <div className="text-sm font-medium text-neutral-900">UI font size</div>
+                  <p className="mt-0.5 text-xs text-neutral-500">Adjust the base font size across the whole interface.</p>
+                </div>
+                <span className="text-sm font-semibold tabular text-boulder-600 w-10 text-right">{fontSize}px</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] text-neutral-400 shrink-0">10px</span>
+                <input
+                  type="range"
+                  min={10}
+                  max={20}
+                  step={1}
+                  value={fontSize}
+                  onChange={(e) => changeFontSize(Number(e.target.value))}
+                  className="flex-1 h-1.5 rounded-full accent-boulder-500 cursor-pointer"
+                />
+                <span className="text-[10px] text-neutral-400 shrink-0">20px</span>
+              </div>
+              <div className="flex justify-between mt-1 px-7">
+                {[10,11,12,13,14,15,16,17,18,19,20].map(s => (
+                  <button key={s} onClick={() => changeFontSize(s)} className={cn("text-[9px] tabular transition-colors", fontSize === s ? "text-boulder-600 font-bold" : "text-neutral-300 hover:text-neutral-500")}>{s}</button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 

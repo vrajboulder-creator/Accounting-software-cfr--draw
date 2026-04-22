@@ -109,6 +109,11 @@ export async function updateDivision(id: string, data: Record<string, unknown>) 
   must(null, error);
 }
 
+export async function deleteDivision(id: string) {
+  const { error } = await db.from("divisions").delete().eq("id", id);
+  must(null, error);
+}
+
 // ── Bid Line Items ────────────────────────────────────────────────────────────
 
 export async function getBidLineItems(projectId: string) {
@@ -132,6 +137,16 @@ export async function createBidLineItem(data: { divisionId: string; name: string
   });
   must(null, error);
   return id;
+}
+
+export async function updateBidLineItem(id: string, data: Record<string, unknown>) {
+  const { error } = await db.from("bid_line_items").update({ ...toSnake(data), updated_at: new Date().toISOString() }).eq("id", id);
+  must(null, error);
+}
+
+export async function deleteBidLineItem(id: string) {
+  const { error } = await db.from("bid_line_items").delete().eq("id", id);
+  must(null, error);
 }
 
 // ── Transactions ──────────────────────────────────────────────────────────────
