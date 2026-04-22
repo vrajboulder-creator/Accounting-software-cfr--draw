@@ -28,10 +28,17 @@ export function formatPercent(bps: number, decimals = 1) {
 }
 
 export function formatDate(date: string | Date) {
-  const d = typeof date === "string" ? new Date(date) : date;
+  if (typeof date === "string") {
+    const [year, month, day] = date.split("-").map(Number);
+    return new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }).format(new Date(year, month - 1, day));
+  }
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
-  }).format(d);
+  }).format(date);
 }

@@ -84,3 +84,27 @@
   color: transparent;
   paint-order: stroke fill;
 }
+
+/* Compact mode — density-reduces the whole UI when enabled on <html> */
+html.compact {
+  font-size: 13.5px;
+}
+html.compact table th,
+html.compact table td {
+  padding-top: 0.35rem !important;
+  padding-bottom: 0.35rem !important;
+}
+html.compact .py-3 { padding-top: 0.4rem !important; padding-bottom: 0.4rem !important; }
+html.compact .py-4 { padding-top: 0.6rem !important; padding-bottom: 0.6rem !important; }
+html.compact .py-5 { padding-top: 0.75rem !important; padding-bottom: 0.75rem !important; }
+html.compact .py-6 { padding-top: 1rem !important; padding-bottom: 1rem !important; }
+html.compact .py-8 { padding-top: 1.25rem !important; padding-bottom: 1.25rem !important; }
+html.compact .p-5 { padding: 0.75rem !important; }
+html.compact .p-6 { padding: 1rem !important; }
+html.compact .p-8 { padding: 1.25rem !important; }
+html.compact .gap-4 { gap: 0.65rem !important; }
+html.compact .gap-6 { gap: 1rem !important; }
+html.compact .mt-6 { margin-top: 1rem !important; }
+html.compact .mt-7 { margin-top: 1.1rem !important; }
+html.compact .mt-8 { margin-top: 1.25rem !important; }
+html.compact .space-y-6 > :not([hidden]) ~ :not([hidden]) { margin-top: 1rem !important; }

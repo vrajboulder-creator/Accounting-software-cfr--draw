@@ -50,8 +50,10 @@ export function RoleProvider({ children, users }: { children: React.ReactNode; u
   return <RoleContext.Provider value={{ role, setRole, user }}>{children}</RoleContext.Provider>;
 }
 
+const FALLBACK_USER: UserRecord = { id: "", email: "", name: "Unknown", orgId: "", avatarColor: null };
+
 export function useRole() {
   const ctx = React.useContext(RoleContext);
-  if (!ctx) throw new Error("useRole must be used within RoleProvider");
+  if (!ctx) return { role: "contractor_pm" as ProjectRole, setRole: () => {}, user: FALLBACK_USER };
   return ctx;
 }

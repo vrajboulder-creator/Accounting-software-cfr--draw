@@ -1,25 +1,17 @@
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
-import * as schema from "./schema";
+import { createClient } from "@supabase/supabase-js";
+import type { Database } from "./database.types";
 
-const connectionString = process.env.DATABASE_URL!;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-const globalForDb = globalThis as unknown as {
-  pgClient: ReturnType<typeof postgres> | undefined;
+const globalForSupabase = globalThis as unknown as {
+  supabaseClient: ReturnType<typeof createClient<Database>> | undefined;
 };
 
-const client =
-  globalForDb.pgClient ??
-  postgres(connectionString, {
-    prepare: false,
-    max: 1,
-    idle_timeout: 10,
-    max_lifetime: 60 * 10,
-    connect_timeout: 10,
+export const db =
+  globalForSupabase.supabaseClient ??
+  createClient<Database>(supabaseUrl, supabaseKey, {
+    auth: { persistSession: false },
   });
 
-if (process.env.NODE_ENV !== "production") globalForDb.pgClient = client;
-
-export const db = drizzle(client, { schema });
-
-export * from "./schema";
+if (process.env.NODE_ENV !== "production") globalForSupabase.supabaseClient = db;

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { RoleProvider } from "@/components/role-context";
 import { RoleSwitcher } from "@/components/role-switcher";
+import { CompactInit } from "@/components/compact-init";
 import { getUsers } from "@/lib/db/queries";
 
 export const metadata: Metadata = {
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const users = await getUsers();
+  const users = await getUsers().catch(() => []);
   return (
     <html lang="en" className="h-full">
       <head>
@@ -29,6 +30,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         `}</style>
       </head>
       <body className="min-h-screen bg-background font-sans antialiased">
+        <CompactInit />
         <RoleProvider users={users}>
           {children}
           <RoleSwitcher />

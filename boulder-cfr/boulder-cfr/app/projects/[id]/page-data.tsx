@@ -1,7 +1,7 @@
 import {
   getProject, getDivisions, getBidLineItems, getTransactions,
   getDraws, getDrawLineItems, getChangeOrders, getProjectMemberships,
-  getCFRActuals, getReceivedFundsByDivision, getUsers, getOrganizations,
+  getCFRActuals, getReceivedFundsByDivision, getReceivedFunds, getUsers, getOrganizations,
 } from "@/lib/db/queries";
 import { notFound } from "next/navigation";
 
@@ -21,6 +21,7 @@ export async function loadProjectData(projectId: string) {
     orgList,
     actuals,
     receivedByDiv,
+    receivedFundsList,
   ] = await Promise.all([
     getDivisions(projectId),
     getTransactions(projectId),
@@ -31,6 +32,7 @@ export async function loadProjectData(projectId: string) {
     getOrganizations(),
     getCFRActuals(projectId),
     getReceivedFundsByDivision(projectId),
+    getReceivedFunds(projectId),
   ]);
 
   const bidLineItemList = await getBidLineItems(projectId);
@@ -73,5 +75,6 @@ export async function loadProjectData(projectId: string) {
     memberships,
     users: userList,
     organizations: orgList,
+    receivedFunds: receivedFundsList,
   };
 }
