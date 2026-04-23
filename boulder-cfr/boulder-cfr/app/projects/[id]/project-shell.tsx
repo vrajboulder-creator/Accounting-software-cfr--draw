@@ -833,6 +833,7 @@ function CFRBidDB({ data, selected = "all" }: { data: ProjectPageData; selected?
 function CFRDetailDB({ data, simplified, selected = "all", setSelected, active = true }: { data: ProjectPageData; simplified?: boolean; selected?: string; setSelected?: (v: string) => void; active?: boolean }) {
   const { divisions, transactions, receivedFunds, bidLineItems } = data;
   const [search, setSearch] = React.useState("");
+  const [diffMode, setDiffMode] = React.useState(false);
   const [fG703, setFG703] = React.useState("all");
   const [fDescription, setFDescription] = React.useState("all");
   const [fCommentary, setFCommentary] = React.useState("all");
@@ -959,7 +960,30 @@ function CFRDetailDB({ data, simplified, selected = "all", setSelected, active =
       return (a.date ?? "").localeCompare(b.date ?? "");
     });
 
+    // Compute column totals for analytics row + diff mode
+    let totDebitGross = 0, totDebitRetn = 0, totDebitNet = 0;
+    let totCreditGross = 0, totCreditRetn = 0, totCreditNet = 0;
+    for (const e of filtered) {
+      totDebitGross += e.debitGross;
+      totDebitRetn += e.debitRetn;
+      totDebitNet += e.debitNet;
+      totCreditGross += e.creditGross;
+      totCreditRetn += e.creditRetn;
+      totCreditNet += e.creditNet;
+    }
+
     const out: Cell[][] = [];
+    // Analytics row (totals)
+    out.push([
+      "TOTAL", "", "", "", "",
+      totDebitGross / 100 || "—",
+      totDebitRetn / 100 || "—",
+      totDebitNet / 100 || "—",
+      totCreditGross / 100 || "—",
+      totCreditRetn / 100 || "—",
+      totCreditNet / 100 || "—",
+      "", "", "", "", "", "",
+    ]);
     // Group header row: Debits / Credits / Other Information
     out.push([
       "", "", "", "", "",
@@ -982,18 +1006,24 @@ function CFRDetailDB({ data, simplified, selected = "all", setSelected, active =
         out.push([`${e.divNum}. ${div?.name ?? ""}`, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
         lastDiv = e.divNum;
       }
+      const dG = diffMode ? (e.debitGross - totDebitGross) / 100 : e.debitGross / 100 || "—";
+      const dR = diffMode ? (e.debitRetn - totDebitRetn) / 100 : e.debitRetn / 100 || "—";
+      const dN = diffMode ? (e.debitNet - totDebitNet) / 100 : e.debitNet / 100 || "—";
+      const cG = diffMode ? (e.creditGross - totCreditGross) / 100 : e.creditGross / 100 || "—";
+      const cR = diffMode ? (e.creditRetn - totCreditRetn) / 100 : e.creditRetn / 100 || "—";
+      const cN = diffMode ? (e.creditNet - totCreditNet) / 100 : e.creditNet / 100 || "—";
       out.push([
         e.date ? new Date(e.date).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }) : "",
         e.g703 ?? "",
         e.drawNum ?? "",
         e.description,
         e.commentary,
-        e.debitGross / 100 || "—",
-        e.debitRetn / 100 || "—",
-        e.debitNet / 100 || "—",
-        e.creditGross / 100 || "—",
-        e.creditRetn / 100 || "—",
-        e.creditNet / 100 || "—",
+        dG,
+        dR,
+        dN,
+        cG,
+        cR,
+        cN,
         e.bidItem,
         e.counterparty,
         e.paidBy,
@@ -1006,7 +1036,7 @@ function CFRDetailDB({ data, simplified, selected = "all", setSelected, active =
       ]);
     }
     return out;
-  }, [transactions, receivedFunds, divisions, bidLineItems, selected, simplified, search, fG703, fDescription, fCommentary, fVendor, fPaidBy, fBackup, fReceivedK1, fType]);
+  }, [transactions, receivedFunds, divisions, bidLineItems, selected, simplified, search, fG703, fDescription, fCommentary, fVendor, fPaidBy, fBackup, fReceivedK1, fType, diffMode]);
 
   const uniqueOptions = React.useMemo(() => {
     const all = { g703: new Set<string>(), description: new Set<string>(), commentary: new Set<string>(), vendor: new Set<string>(), paidBy: new Set<string>(), backup: new Set<string>(), receivedK1: new Set<string>(), type: new Set<string>() };
@@ -1046,7 +1076,7 @@ function CFRDetailDB({ data, simplified, selected = "all", setSelected, active =
   }, [transactions, receivedFunds, divisions]);
 
   const divisionRows = rows.reduce<number[]>((acc, r, i) => {
-    if (i < 2) return acc;
+    if (i < 3) return acc;
     if (typeof r[0] === "string" && /^\d+\./.test(r[0])) acc.push(i);
     return acc;
   }, []);
@@ -1300,6 +1330,325 @@ export function CFRTab({ data }: { data: ProjectPageData }) {
         </TabsContent>
 
       </Tabs>
+    </main>
+  );
+}
+
+// ── Backup ────────────────────────────────────────────────────────────────────
+
+export function BackupTab({ data }: { data: ProjectPageData }) {
+  const { project, transactions, organizations } = data;
+  const { role } = useRole();
+  const [expanded, setExpanded] = React.useState<Set<string>>(new Set());
+  const [openTxId, setOpenTxId] = React.useState<string | null>(null);
+  const [search, setSearch] = React.useState("");
+  const [fBackup, setFBackup] = React.useState("all");
+  const [fVendor, setFVendor] = React.useState("all");
+  const [fAttachments, setFAttachments] = React.useState("all");
+  const [fBacId, setFBacId] = React.useState("all");
+  const [fAmtMin, setFAmtMin] = React.useState("");
+  const [fAmtMax, setFAmtMax] = React.useState("");
+
+  if (!permissions.canSeeTransactionDetail(role)) {
+    return (
+      <main className="max-w-5xl mx-auto px-6 py-16">
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-8 text-center">
+          <Lock className="h-6 w-6 text-amber-600 mx-auto" />
+          <h1 className="mt-3 font-display text-xl font-bold text-amber-900">Backup restricted</h1>
+        </div>
+      </main>
+    );
+  }
+
+  // Group transactions by backup ID
+  const groups = React.useMemo(() => {
+    const map = new Map<string, typeof transactions>();
+    for (const t of transactions) {
+      const bk = (t as unknown as { backup?: string }).backup;
+      if (!bk) continue;
+      const key = String(bk).trim();
+      if (!key || key === "[TBD]" || key === "NA") continue;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(t);
+    }
+    // Build rows
+    const orgByName = new Map(organizations.map((o) => [o.name.toLowerCase().trim(), o]));
+    type Row = {
+      backupNo: string;
+      txs: typeof transactions;
+      vendorTotals: Map<string, number>;
+      primaryVendor: string;
+      primaryEmail: string | null;
+      vendorNames: string[];
+      totalAmount: number;
+      totalNet: number;
+    };
+    const rows: Row[] = [];
+    for (const [backupNo, txs] of map) {
+      const vendorTotals = new Map<string, number>();
+      let totalAmount = 0, totalNet = 0;
+      for (const t of txs) {
+        const v = (t.vendor || t.counterparty || "—").trim();
+        vendorTotals.set(v, (vendorTotals.get(v) ?? 0) + t.amountCents);
+        totalAmount += t.amountCents;
+        totalNet += t.netCents;
+      }
+      const vendorNames = [...vendorTotals.keys()];
+      const primaryVendor = [...vendorTotals.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "";
+      const org = orgByName.get(primaryVendor.toLowerCase());
+      const primaryEmail = (org as unknown as { email?: string } | undefined)?.email ?? null;
+      rows.push({ backupNo, txs, vendorTotals, primaryVendor, primaryEmail, vendorNames, totalAmount, totalNet });
+    }
+    rows.sort((a, b) => {
+      const an = Number(a.backupNo), bn = Number(b.backupNo);
+      if (Number.isFinite(an) && Number.isFinite(bn)) return an - bn;
+      return a.backupNo.localeCompare(b.backupNo);
+    });
+    return rows;
+  }, [transactions, organizations]);
+
+  const allVendors = React.useMemo(() => {
+    const s = new Set<string>();
+    for (const g of groups) g.vendorNames.forEach((v) => s.add(v));
+    return [...s].sort();
+  }, [groups]);
+
+  const filteredGroups = React.useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const amtMin = parseFloat(fAmtMin);
+    const amtMax = parseFloat(fAmtMax);
+    return groups.filter((g) => {
+      if (fBackup !== "all" && g.backupNo !== fBackup) return false;
+      if (fVendor !== "all" && !g.vendorNames.includes(fVendor)) return false;
+      if (fAttachments !== "all" && String(g.txs.length) !== fAttachments) return false;
+      if (fBacId !== "all" && (g.primaryEmail || "") !== fBacId) return false;
+      const amtDollars = g.totalAmount / 100;
+      if (Number.isFinite(amtMin) && amtDollars < amtMin) return false;
+      if (Number.isFinite(amtMax) && amtDollars > amtMax) return false;
+      if (q) {
+        const hay = [g.backupNo, ...g.vendorNames, ...g.txs.map((t) => t.description || "")].join(" ").toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [groups, search, fBackup, fVendor, fAttachments, fBacId, fAmtMin, fAmtMax]);
+
+  function toggle(bk: string) {
+    setExpanded((prev) => {
+      const s = new Set(prev);
+      if (s.has(bk)) s.delete(bk); else s.add(bk);
+      return s;
+    });
+  }
+
+  const openTx = openTxId ? transactions.find((t) => t.id === openTxId) : null;
+  const hasFilters = search || fBackup !== "all" || fVendor !== "all" || fAttachments !== "all" || fBacId !== "all" || fAmtMin || fAmtMax;
+  const allAttachmentCounts = React.useMemo(() => [...new Set(groups.map((g) => g.txs.length))].sort((a, b) => a - b), [groups]);
+  const allBacIds = React.useMemo(() => [...new Set(groups.map((g) => g.primaryEmail).filter(Boolean) as string[])].sort(), [groups]);
+
+  return (
+    <main className="max-w-7xl mx-auto px-6 py-8">
+      <div className="mb-6">
+        <div className="text-[11px] uppercase tracking-[0.18em] font-semibold text-boulder-600">Invoice Backup</div>
+        <h1 className="mt-1.5 font-display text-3xl font-bold tracking-tight text-neutral-950">Backup</h1>
+        <p className="mt-1 text-sm text-neutral-500">
+          {project.name} · {filteredGroups.length} of {groups.length} backup{groups.length === 1 ? "" : "s"}
+        </p>
+      </div>
+
+      <div className="sticky top-[56px] z-20 bg-white py-2 mb-3 flex items-center gap-2 flex-wrap shadow-sm">
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search backup, vendor, description…"
+          className="h-7 text-xs w-64"
+        />
+        <select
+          value={fBackup}
+          onChange={(e) => setFBackup(e.target.value)}
+          className="text-[10px] border border-neutral-300 rounded-md px-1.5 py-1 bg-white text-neutral-900 focus:outline-none focus:ring-1 focus:ring-boulder-400 max-w-[140px]"
+        >
+          <option value="all">Backup No.</option>
+          {groups.map((g) => <option key={g.backupNo} value={g.backupNo}>#{g.backupNo}</option>)}
+        </select>
+        <select
+          value={fVendor}
+          onChange={(e) => setFVendor(e.target.value)}
+          className="text-[10px] border border-neutral-300 rounded-md px-1.5 py-1 bg-white text-neutral-900 focus:outline-none focus:ring-1 focus:ring-boulder-400 max-w-[160px]"
+        >
+          <option value="all">Vendor</option>
+          {allVendors.map((v) => <option key={v} value={v}>{v}</option>)}
+        </select>
+        <select
+          value={fAttachments}
+          onChange={(e) => setFAttachments(e.target.value)}
+          className="text-[10px] border border-neutral-300 rounded-md px-1.5 py-1 bg-white text-neutral-900 focus:outline-none focus:ring-1 focus:ring-boulder-400"
+        >
+          <option value="all">Attachments</option>
+          {allAttachmentCounts.map((n) => <option key={n} value={String(n)}>{n}</option>)}
+        </select>
+        <select
+          value={fBacId}
+          onChange={(e) => setFBacId(e.target.value)}
+          className="text-[10px] border border-neutral-300 rounded-md px-1.5 py-1 bg-white text-neutral-900 focus:outline-none focus:ring-1 focus:ring-boulder-400 max-w-[160px]"
+        >
+          <option value="all">BAC ID</option>
+          {allBacIds.map((b) => <option key={b} value={b}>{b}</option>)}
+        </select>
+        <Input
+          value={fAmtMin}
+          onChange={(e) => setFAmtMin(e.target.value)}
+          placeholder="Amt min"
+          className="h-7 text-xs w-20"
+        />
+        <Input
+          value={fAmtMax}
+          onChange={(e) => setFAmtMax(e.target.value)}
+          placeholder="Amt max"
+          className="h-7 text-xs w-20"
+        />
+        {hasFilters && (
+          <button
+            onClick={() => { setSearch(""); setFBackup("all"); setFVendor("all"); setFAttachments("all"); setFBacId("all"); setFAmtMin(""); setFAmtMax(""); }}
+            className="text-[10px] font-semibold text-boulder-600 hover:text-boulder-800 uppercase tracking-wider"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      <div className="rounded-xl border border-neutral-200 bg-white overflow-hidden">
+        <table className="w-full text-xs tabular">
+          <thead className="bg-neutral-50 text-[10px] uppercase tracking-wider font-semibold text-neutral-500">
+            <tr>
+              <th className="w-8 py-2"></th>
+              <th className="text-left py-2 px-3 w-24">Backup No.</th>
+              <th className="text-center py-2 px-3 w-20">Attachments</th>
+              <th className="text-left py-2 px-3 w-48">BAC ID</th>
+              <th className="text-left py-2 px-3">Vendor(s)</th>
+              <th className="text-right py-2 px-3 w-32">Amount (Total)</th>
+              <th className="text-right py-2 px-3 pr-5 w-32">Net Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredGroups.map((g) => {
+              const isOpen = expanded.has(g.backupNo);
+              const mailto = g.primaryEmail
+                ? `mailto:${g.primaryEmail}?subject=Backup%20${encodeURIComponent(g.backupNo)}%20-%20${encodeURIComponent(project.name)}`
+                : null;
+              return (
+                <React.Fragment key={g.backupNo}>
+                  <tr className="border-t border-neutral-100 hover:bg-neutral-50/60">
+                    <td className="py-2 pl-4">
+                      <button onClick={() => toggle(g.backupNo)} className="text-neutral-400 hover:text-neutral-700">
+                        <ChevronRight className={cn("h-4 w-4 transition-transform", isOpen && "rotate-90")} />
+                      </button>
+                    </td>
+                    <td className="py-2 px-3 font-bold text-boulder-700">#{g.backupNo}</td>
+                    <td className="py-2 px-3 text-center">{g.txs.length}</td>
+                    <td className="py-2 px-3">
+                      {mailto ? (
+                        <a href={mailto} className="inline-flex items-center gap-1 text-boulder-600 hover:text-boulder-800">
+                          <Mail className="h-3 w-3" />
+                          <span className="text-[11px]">{g.primaryEmail}</span>
+                        </a>
+                      ) : (
+                        <span className="text-neutral-400 text-[11px]">—</span>
+                      )}
+                    </td>
+                    <td className="py-2 px-3">
+                      <div className="flex flex-wrap gap-1">
+                        {g.vendorNames.map((v) => {
+                          const isPrimary = v === g.primaryVendor;
+                          return (
+                            <span
+                              key={v}
+                              className={cn(
+                                "inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium",
+                                isPrimary ? "bg-boulder-100 text-boulder-800" : "bg-neutral-100 text-neutral-700"
+                              )}
+                            >
+                              {v}
+                              {isPrimary && g.vendorNames.length > 1 && <span className="ml-1 text-[9px] font-bold">★</span>}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </td>
+                    <td className="py-2 px-3 text-right font-semibold">{formatCurrency(g.totalAmount)}</td>
+                    <td className="py-2 px-3 pr-5 text-right font-bold text-neutral-950">{formatCurrency(g.totalNet)}</td>
+                  </tr>
+                  {isOpen && (
+                    <tr className="bg-neutral-50/60 border-t border-neutral-100">
+                      <td></td>
+                      <td colSpan={6} className="py-2 px-3">
+                        <table className="w-full text-[11px]">
+                          <thead className="text-[9px] uppercase tracking-wider text-neutral-500">
+                            <tr>
+                              <th className="text-left py-1 pr-3 w-32">Trans ID</th>
+                              <th className="text-left py-1 px-3">Description</th>
+                              <th className="text-left py-1 px-3">Vendor</th>
+                              <th className="text-right py-1 px-3 w-28">Amount</th>
+                              <th className="text-right py-1 px-3 w-28">Net</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {g.txs.map((t) => {
+                              const v = (t.vendor || t.counterparty || "—").trim();
+                              const isDifferent = v !== g.primaryVendor;
+                              return (
+                                <tr key={t.id} className="border-t border-neutral-200">
+                                  <td className="py-1 pr-3">
+                                    <button
+                                      onClick={() => setOpenTxId(t.id)}
+                                      className="text-boulder-600 hover:text-boulder-800 font-mono text-[10px]"
+                                    >
+                                      {t.id}
+                                    </button>
+                                  </td>
+                                  <td className="py-1 px-3 text-neutral-700">{t.description}</td>
+                                  <td className={cn("py-1 px-3", isDifferent && "text-red-600 font-semibold")}>{v}</td>
+                                  <td className="py-1 px-3 text-right tabular">{formatCurrency(t.amountCents)}</td>
+                                  <td className="py-1 px-3 text-right tabular">{formatCurrency(t.netCents)}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {openTx && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setOpenTxId(null)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-xl max-h-[90vh] overflow-auto p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="text-[10px] uppercase tracking-wider font-bold text-boulder-600">Transaction</div>
+                <div className="font-mono text-sm text-neutral-700">{openTx.id}</div>
+              </div>
+              <button onClick={() => setOpenTxId(null)} className="text-neutral-400 hover:text-neutral-700"><X className="h-5 w-5" /></button>
+            </div>
+            <dl className="space-y-2 text-sm">
+              <div className="flex justify-between border-b border-neutral-100 pb-2"><dt className="text-neutral-500">Date</dt><dd>{openTx.date ?? "—"}</dd></div>
+              <div className="flex justify-between border-b border-neutral-100 pb-2"><dt className="text-neutral-500">Description</dt><dd className="text-right max-w-[60%]">{openTx.description}</dd></div>
+              <div className="flex justify-between border-b border-neutral-100 pb-2"><dt className="text-neutral-500">Vendor</dt><dd>{openTx.vendor}</dd></div>
+              <div className="flex justify-between border-b border-neutral-100 pb-2"><dt className="text-neutral-500">Counterparty</dt><dd>{openTx.counterparty ?? "—"}</dd></div>
+              <div className="flex justify-between border-b border-neutral-100 pb-2"><dt className="text-neutral-500">Gross</dt><dd className="font-semibold tabular">{formatCurrency(openTx.amountCents)}</dd></div>
+              <div className="flex justify-between border-b border-neutral-100 pb-2"><dt className="text-neutral-500">Retainage</dt><dd className="tabular">{formatCurrency(openTx.retainageCents)}</dd></div>
+              <div className="flex justify-between border-b border-neutral-100 pb-2"><dt className="text-neutral-500">Net</dt><dd className="font-semibold tabular">{formatCurrency(openTx.netCents)}</dd></div>
+              <div className="flex justify-between border-b border-neutral-100 pb-2"><dt className="text-neutral-500">Paid By</dt><dd>{openTx.paidBy ?? "—"}</dd></div>
+              <div className="flex justify-between border-b border-neutral-100 pb-2"><dt className="text-neutral-500">Status</dt><dd>{openTx.paymentStatus}</dd></div>
+            </dl>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
@@ -1955,6 +2304,14 @@ function DrawDetailView({ data, draw, drawLineItems, onBack }: {
   const coAdditions = coApproved.filter((c) => c.amountCents > 0).reduce((s, c) => s + c.amountCents, 0);
   const coDeductions = coApproved.filter((c) => c.amountCents < 0).reduce((s, c) => s + Math.abs(c.amountCents), 0);
   const [bidFilter, setBidFilter] = React.useState<string>("all");
+  const [bidSearch, setBidSearch] = React.useState("");
+  const [bidItemFilter, setBidItemFilter] = React.useState("all");
+  const [bidBudgetMin, setBidBudgetMin] = React.useState("");
+  const [bidBudgetMax, setBidBudgetMax] = React.useState("");
+  const [bidSpendMin, setBidSpendMin] = React.useState("");
+  const [bidSpendMax, setBidSpendMax] = React.useState("");
+  const [bidPctMin, setBidPctMin] = React.useState("");
+  const [bidPctMax, setBidPctMax] = React.useState("");
   const { role } = useRole();
   const [isPending, startTransition] = useTransition();
 
@@ -2286,23 +2643,62 @@ function DrawDetailView({ data, draw, drawLineItems, onBack }: {
               <span className="flex-1">Bid</span>
               <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" />
             </summary>
-            <div className="mt-2">
+            <div className="mt-2" style={{ marginLeft: "-4rem", marginRight: "-4rem" }}>
             <div className="space-y-5">
-              <div className="flex items-center gap-3">
-                <label className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">Division</label>
+              <div className="sticky top-[56px] z-20 bg-white py-2 px-2 flex items-center gap-1 shadow-sm w-full">
                 <select
                   value={bidFilter}
                   onChange={(e) => setBidFilter(e.target.value)}
-                  className="text-sm border border-neutral-300 rounded-lg px-3 py-1.5 bg-white text-neutral-900 focus:outline-none focus:ring-2 focus:ring-boulder-400"
+                  className="flex-1 min-w-0 text-[10px] border border-neutral-300 rounded-md px-1 py-1 bg-white text-neutral-900 focus:outline-none focus:ring-1 focus:ring-boulder-400"
                 >
-                  <option value="all">All divisions</option>
+                  <option value="all">Division</option>
                   {divisions.map((d) => (
                     <option key={d.id} value={d.id}>{d.number}. {d.name}</option>
                   ))}
                 </select>
+                <select
+                  value={bidItemFilter}
+                  onChange={(e) => setBidItemFilter(e.target.value)}
+                  className="flex-1 min-w-0 text-[10px] border border-neutral-300 rounded-md px-1 py-1 bg-white text-neutral-900 focus:outline-none focus:ring-1 focus:ring-boulder-400"
+                >
+                  <option value="all">Description</option>
+                  {[...new Set(bidLineItems.map((b) => b.name).filter(Boolean))].sort().map((n) => <option key={n} value={n}>{n}</option>)}
+                </select>
+                <Input value={bidSearch} onChange={(e) => setBidSearch(e.target.value)} placeholder="Search" className="flex-1 min-w-0 h-7 text-[10px]" />
+                <Input value={bidBudgetMin} onChange={(e) => setBidBudgetMin(e.target.value)} placeholder="Bgt min" className="flex-1 min-w-0 h-7 text-[10px]" />
+                <Input value={bidBudgetMax} onChange={(e) => setBidBudgetMax(e.target.value)} placeholder="Bgt max" className="flex-1 min-w-0 h-7 text-[10px]" />
+                <Input value={bidSpendMin} onChange={(e) => setBidSpendMin(e.target.value)} placeholder="Spd min" className="flex-1 min-w-0 h-7 text-[10px]" />
+                <Input value={bidSpendMax} onChange={(e) => setBidSpendMax(e.target.value)} placeholder="Spd max" className="flex-1 min-w-0 h-7 text-[10px]" />
+                <Input value={bidPctMin} onChange={(e) => setBidPctMin(e.target.value)} placeholder="% min" className="flex-1 min-w-0 h-7 text-[10px]" />
+                <Input value={bidPctMax} onChange={(e) => setBidPctMax(e.target.value)} placeholder="% max" className="flex-1 min-w-0 h-7 text-[10px]" />
+                {(bidFilter !== "all" || bidSearch || bidItemFilter !== "all" || bidBudgetMin || bidBudgetMax || bidSpendMin || bidSpendMax || bidPctMin || bidPctMax) && (
+                  <button
+                    onClick={() => { setBidFilter("all"); setBidSearch(""); setBidItemFilter("all"); setBidBudgetMin(""); setBidBudgetMax(""); setBidSpendMin(""); setBidSpendMax(""); setBidPctMin(""); setBidPctMax(""); }}
+                    className="text-[10px] font-semibold text-boulder-600 hover:text-boulder-800 uppercase tracking-wider"
+                  >
+                    Clear
+                  </button>
+                )}
               </div>
               {(bidFilter === "all" ? divisions : divisions.filter((d) => d.id === bidFilter)).map((div) => {
-                const items = bidLineItems.filter((b) => b.divisionId === div.id);
+                const q = bidSearch.trim().toLowerCase();
+                const bMin = parseFloat(bidBudgetMin), bMax = parseFloat(bidBudgetMax);
+                const sMin = parseFloat(bidSpendMin), sMax = parseFloat(bidSpendMax);
+                const pMin = parseFloat(bidPctMin), pMax = parseFloat(bidPctMax);
+                const items = bidLineItems.filter((b) => {
+                  if (b.divisionId !== div.id) return false;
+                  if (bidItemFilter !== "all" && b.name !== bidItemFilter) return false;
+                  if (q && !(b.name || "").toLowerCase().includes(q) && !(b.coding || "").toLowerCase().includes(q)) return false;
+                  const bd = b.budgetCents / 100, ac = b.actualCents / 100;
+                  const pct = b.budgetCents > 0 ? (b.actualCents / b.budgetCents) * 100 : 0;
+                  if (Number.isFinite(bMin) && bd < bMin) return false;
+                  if (Number.isFinite(bMax) && bd > bMax) return false;
+                  if (Number.isFinite(sMin) && ac < sMin) return false;
+                  if (Number.isFinite(sMax) && ac > sMax) return false;
+                  if (Number.isFinite(pMin) && pct < pMin) return false;
+                  if (Number.isFinite(pMax) && pct > pMax) return false;
+                  return true;
+                });
                 if (!items.length) return null;
                 const totalBudget = items.reduce((s, b) => s + b.budgetCents, 0);
                 const totalActual = items.reduce((s, b) => s + b.actualCents, 0);
@@ -2648,6 +3044,35 @@ export function ChangeOrdersTab({ data }: { data: ProjectPageData }) {
   const [isPending, startTransition] = useTransition();
   const [showNew, setShowNew] = React.useState(false);
   const [form, setForm] = React.useState({ description: "", date: "", amountDollars: "" });
+  const [search, setSearch] = React.useState("");
+  const [fStatus, setFStatus] = React.useState("all");
+  const [fCoNum, setFCoNum] = React.useState("all");
+  const [fDesc, setFDesc] = React.useState("all");
+  const [fDate, setFDate] = React.useState("all");
+  const [fAmtMin, setFAmtMin] = React.useState("");
+  const [fAmtMax, setFAmtMax] = React.useState("");
+
+  const coNums = React.useMemo(() => [...new Set(changeOrders.map((c) => String(c.number)))].sort((a, b) => Number(a) - Number(b)), [changeOrders]);
+  const coDescs = React.useMemo(() => [...new Set(changeOrders.map((c) => c.description || "").filter(Boolean))].sort(), [changeOrders]);
+  const coDates = React.useMemo(() => [...new Set(changeOrders.map((c) => c.date || "").filter(Boolean))].sort(), [changeOrders]);
+
+  const filteredCOs = React.useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const amtMin = parseFloat(fAmtMin);
+    const amtMax = parseFloat(fAmtMax);
+    return changeOrders.filter((c) => {
+      if (fStatus !== "all" && c.status !== fStatus) return false;
+      if (fCoNum !== "all" && String(c.number) !== fCoNum) return false;
+      if (fDesc !== "all" && c.description !== fDesc) return false;
+      if (fDate !== "all" && c.date !== fDate) return false;
+      const amtDollars = c.amountCents / 100;
+      if (Number.isFinite(amtMin) && amtDollars < amtMin) return false;
+      if (Number.isFinite(amtMax) && amtDollars > amtMax) return false;
+      if (q && !(c.description || "").toLowerCase().includes(q) && !String(c.number).includes(q)) return false;
+      return true;
+    });
+  }, [changeOrders, search, fStatus, fCoNum, fDesc, fDate, fAmtMin, fAmtMax]);
+  const hasFilters = search || fStatus !== "all" || fCoNum !== "all" || fDesc !== "all" || fDate !== "all" || fAmtMin || fAmtMax;
 
   const pendingTotal = changeOrders.filter((c) => c.status === "pending").reduce((s, c) => s + c.amountCents, 0);
   const approvedTotal = changeOrders.filter((c) => c.status === "approved").reduce((s, c) => s + c.amountCents, 0);
@@ -2720,7 +3145,70 @@ export function ChangeOrdersTab({ data }: { data: ProjectPageData }) {
         </div>
       </div>
 
-      <div className="mt-6 rounded-xl border border-neutral-200 bg-white overflow-hidden">
+      <div className="sticky top-[56px] z-20 bg-white py-2 mt-4 flex items-center gap-2 flex-wrap shadow-sm">
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search # or description…"
+          className="h-7 text-xs w-64"
+        />
+        <select
+          value={fCoNum}
+          onChange={(e) => setFCoNum(e.target.value)}
+          className="text-[10px] border border-neutral-300 rounded-md px-1.5 py-1 bg-white text-neutral-900 focus:outline-none focus:ring-1 focus:ring-boulder-400"
+        >
+          <option value="all">CO #</option>
+          {coNums.map((n) => <option key={n} value={n}>#{n}</option>)}
+        </select>
+        <select
+          value={fDate}
+          onChange={(e) => setFDate(e.target.value)}
+          className="text-[10px] border border-neutral-300 rounded-md px-1.5 py-1 bg-white text-neutral-900 focus:outline-none focus:ring-1 focus:ring-boulder-400"
+        >
+          <option value="all">Date</option>
+          {coDates.map((d) => <option key={d} value={d}>{d}</option>)}
+        </select>
+        <select
+          value={fDesc}
+          onChange={(e) => setFDesc(e.target.value)}
+          className="text-[10px] border border-neutral-300 rounded-md px-1.5 py-1 bg-white text-neutral-900 focus:outline-none focus:ring-1 focus:ring-boulder-400 max-w-[160px]"
+        >
+          <option value="all">Description</option>
+          {coDescs.map((d) => <option key={d} value={d}>{d}</option>)}
+        </select>
+        <select
+          value={fStatus}
+          onChange={(e) => setFStatus(e.target.value)}
+          className="text-[10px] border border-neutral-300 rounded-md px-1.5 py-1 bg-white text-neutral-900 focus:outline-none focus:ring-1 focus:ring-boulder-400"
+        >
+          <option value="all">Status</option>
+          <option value="pending">Pending</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+        </select>
+        <Input
+          value={fAmtMin}
+          onChange={(e) => setFAmtMin(e.target.value)}
+          placeholder="Amt min"
+          className="h-7 text-xs w-20"
+        />
+        <Input
+          value={fAmtMax}
+          onChange={(e) => setFAmtMax(e.target.value)}
+          placeholder="Amt max"
+          className="h-7 text-xs w-20"
+        />
+        {hasFilters && (
+          <button
+            onClick={() => { setSearch(""); setFStatus("all"); setFCoNum("all"); setFDesc("all"); setFDate("all"); setFAmtMin(""); setFAmtMax(""); }}
+            className="text-[10px] font-semibold text-boulder-600 hover:text-boulder-800 uppercase tracking-wider"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      <div className="mt-4 rounded-xl border border-neutral-200 bg-white overflow-hidden">
         <table className="w-full text-sm tabular">
           <thead className="bg-neutral-50 text-[10px] uppercase tracking-wider font-semibold text-neutral-500">
             <tr>
@@ -2733,9 +3221,9 @@ export function ChangeOrdersTab({ data }: { data: ProjectPageData }) {
             </tr>
           </thead>
           <tbody>
-            {changeOrders.length === 0 ? (
-              <tr><td colSpan={6} className="py-12 text-center text-sm text-neutral-500">No change orders yet</td></tr>
-            ) : changeOrders.map((c) => (
+            {filteredCOs.length === 0 ? (
+              <tr><td colSpan={6} className="py-12 text-center text-sm text-neutral-500">{hasFilters ? "No change orders match filters" : "No change orders yet"}</td></tr>
+            ) : filteredCOs.map((c) => (
               <tr key={c.id} className="border-t border-neutral-100 hover:bg-neutral-50/60">
                 <td className="py-3 pl-5 pr-3 font-bold text-neutral-950">#{c.number}</td>
                 <td className="py-3 px-3 text-neutral-500">{formatDate(c.date)}</td>

@@ -27,18 +27,20 @@ export function formatPercent(bps: number, decimals = 1) {
   return (bps / 100).toFixed(decimals) + "%";
 }
 
-export function formatDate(date: string | Date) {
+export function formatDate(date: string | Date | null | undefined) {
+  if (!date) return "—";
+  let d: Date;
   if (typeof date === "string") {
-    const [year, month, day] = date.split("-").map(Number);
-    return new Intl.DateTimeFormat("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    }).format(new Date(year, month - 1, day));
+    if (!date.trim()) return "—";
+    const parts = date.split("-").map(Number);
+    if (parts.length === 3 && parts.every((n) => Number.isFinite(n))) {
+      d = new Date(parts[0], parts[1] - 1, parts[2]);
+    } else {
+      d = new Date(date);
+    }
+  } else {
+    d = date;
   }
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  }).format(date);
+  if (isNaN(d.getTime())) return "—";
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(d);
 }
