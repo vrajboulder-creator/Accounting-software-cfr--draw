@@ -112,27 +112,22 @@ function XlsxSheetImpl({ data, title, percentCols = [], rawNumberCols = [], bold
     }
   }
 
-  return (
-    <div className="rounded-xl border border-neutral-200 bg-white shadow-sm">
-      {title && (
-        <div className="px-4 py-2.5 border-b border-neutral-200 bg-gradient-to-r from-neutral-50 to-white rounded-t-xl">
-          <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-neutral-700">{title}</div>
-        </div>
-      )}
-      <table
-        ref={tableRef}
-        style={{ fontFamily: '"Trebuchet MS", "Lucida Sans", Tahoma, sans-serif' }}
-        className={cn("w-full border-collapse text-[9px] tabular", autoLayout && !colWidths ? "table-auto" : "table-fixed")}
-      >
-        {colWidths && (
-          <colgroup>
-            {colWidths.map((w, i) => (
-              <col key={i} style={{ width: widthOverrides[i] ? `${widthOverrides[i]}px` : w }} />
-            ))}
-          </colgroup>
-        )}
-        <tbody>
-          {data.map((row, rIdx) => {
+  // Separate header rows (only contiguous bold/group-header rows at top) from body rows
+  // Section rows (like "1. GENERAL CONDITIONS") belong in body, not sticky header
+  let firstBodyIdx = 0;
+  for (let i = 0; i < data.length; i++) {
+    const isB = boldRows.includes(i);
+    const isS = sectionRows.includes(i);
+    const isGroupHdr = isS && mergeRows.includes(i) && i === 0;
+    // Only pure header rows (bold non-section, or first group header) count
+    if (isB || isGroupHdr) {
+      firstBodyIdx = i + 1;
+    } else {
+      break;
+    }
+  }
+
+  const renderRow = (row: typeof data[number], rIdx: number) => {
             const isBold = boldRows.includes(rIdx);
             const isSection = sectionRows.includes(rIdx);
             const shouldMerge = mergeRows.includes(rIdx);
@@ -160,20 +155,54 @@ function XlsxSheetImpl({ data, title, percentCols = [], rawNumberCols = [], bold
             }
 
             const accent = rowAccentFn?.(rIdx, row) ?? null;
+            return renderRowCells(rIdx, row, cells, accent, isBold, isSection, shouldMerge, isHeader, isGroupHeader, isSticky);
+  };
 
-            return (
+  // Extracted row renderer to keep JSX shared between header+body tables
+  function renderRowCells(
+    rIdx: number,
+    row: typeof data[number],
+    cells: { cIdx: number; span: number; v: Cell }[],
+    accent: "green" | "red" | "yellow" | null,
+    isBold: boolean,
+    isSection: boolean,
+    shouldMerge: boolean,
+    isHeader: boolean,
+    isGroupHeader: boolean,
+    isSticky: boolean,
+  ) {
+    return (
               <tr
                 key={rIdx}
                 className={cn(
                   "transition-colors",
                   isGroupHeader && "bg-neutral-50",
                   isHeader && !isGroupHeader && "bg-neutral-100 border-b-2 border-neutral-300",
-                  isSection && !isHeader && !isGroupHeader && "bg-gradient-to-r from-boulder-50/60 to-transparent",
+                  isSection && !isHeader && !isGroupHeader && "bg-boulder-600",
                   isBold && !isSection && !isHeader && "bg-neutral-50/70",
                   !isBold && !isSection && "hover:bg-boulder-50/40",
                 )}
               >
-                {cells.map(({ cIdx, span, v }, cellIdx) => {
+                {cells.map(({ cIdx, span, v }, cellIdx) => renderCell(rIdx, row, cIdx, span, v, cellIdx, accent, isBold, isSection, shouldMerge, isHeader, isGroupHeader, isSticky))}
+              </tr>
+    );
+  }
+
+  function renderCell(
+    _rIdx: number,
+    _row: typeof data[number],
+    cIdx: number,
+    span: number,
+    v: Cell,
+    cellIdx: number,
+    accent: "green" | "red" | "yellow" | null,
+    isBold: boolean,
+    isSection: boolean,
+    shouldMerge: boolean,
+    isHeader: boolean,
+    isGroupHeader: boolean,
+    isSticky: boolean,
+  ) {
                   const isDate = dateCols.includes(cIdx) && isNumber(v) && isExcelDate(v as number);
                   const numeric = isNumber(v) && !rawNumberCols.includes(cIdx) && !isDate;
                   const pct = percentCols.includes(cIdx);
@@ -194,9 +223,10 @@ function XlsxSheetImpl({ data, title, percentCols = [], rawNumberCols = [], bold
                       ))
                     : rawDisplay;
                   const isNeg = numeric && (v as number) < 0;
-                  const statusTag = typeof v === "string" && /^\[(To Be Paid|To Be Confirmed|Confirm)\]$/i.test(v) ? v.toLowerCase() : null;
+                  const statusTag = typeof v === "string" && /^(\[(To Be Paid|To Be Confirmed|Confirm)\]|No)$/i.test(v.trim()) ? v.toLowerCase().trim() : null;
                   const statusColor = statusTag
-                    ? statusTag.includes("to be confirmed") ? "text-amber-600 font-semibold"
+                    ? statusTag === "no" ? "text-red-500 font-bold"
+                    : statusTag.includes("to be confirmed") ? "text-red-500 font-bold"
                     : statusTag.includes("confirm") ? "text-emerald-600 font-semibold"
                     : "text-red-600 font-semibold"
                     : null;
@@ -209,12 +239,12 @@ function XlsxSheetImpl({ data, title, percentCols = [], rawNumberCols = [], bold
                       className={cn(
                         "border-b border-neutral-100 px-2 py-0.5 align-middle text-[9px] leading-tight overflow-hidden",
                         hasLineBreak ? "whitespace-normal" : "whitespace-nowrap",
-                        centerCols.includes(cIdx) ? "text-center tabular-nums" : numeric ? "text-right tabular-nums" : shouldMerge && span > 1 ? "text-center" : isHeader && numericCols.has(cIdx) ? "text-right" : "text-left",
-                        isHeader && "font-mono text-[9px] font-bold uppercase tracking-wider text-neutral-600 px-2 py-2 h-12 align-middle bg-neutral-100 border-b-2 border-neutral-300 shadow-[0_1px_0_0_#d1d5db] leading-[1.2]",
+                        isSection && !isGroupHeader && shouldMerge ? "!text-left pl-5" : centerCols.includes(cIdx) ? "text-center tabular-nums" : numeric ? "text-center tabular-nums" : shouldMerge && span > 1 ? "text-center" : !isHeader && !isGroupHeader && numericCols.has(cIdx) && (v === "—" || v === "-") ? "text-center" : "text-left",
+                        isHeader && "font-mono text-[9px] font-bold uppercase tracking-wider text-neutral-600 px-2 py-2 h-12 align-middle bg-neutral-100 border-b-2 border-neutral-300 shadow-[0_1px_0_0_#d1d5db] leading-[1.2] !text-center !whitespace-nowrap",
                         isGroupHeader && "font-mono text-[9px] font-bold uppercase tracking-[0.14em] text-neutral-500 px-2 py-1 text-center border-r border-neutral-200 last:border-r-0 bg-neutral-50 whitespace-nowrap",
                         isNeg && "text-red-600 font-medium",
                         isBold && !isHeader && "font-semibold text-neutral-900",
-                        isSection && !isGroupHeader && "font-bold text-neutral-900",
+                        isSection && !isGroupHeader && "font-bold text-white bg-boulder-600 uppercase tracking-wider",
                         numeric && !isBold && !isSection && !isNeg && "text-neutral-800",
                         isSticky && "z-20",
                         statusColor,
@@ -222,7 +252,6 @@ function XlsxSheetImpl({ data, title, percentCols = [], rawNumberCols = [], bold
                       style={{
                         ...(cellIdx === 0 && accent ? { boxShadow: `inset 3px 0 0 0 ${accent === "green" ? "#059669" : accent === "yellow" ? "#d97706" : "#dc2626"}` } : {}),
                         ...(isSticky ? { top: stickyOffset, position: "sticky" as const, zIndex: 20, backgroundColor: "#f3f4f6" } : {}),
-                        ...(isHeader ? { position: isSticky ? "sticky" as const : "relative" as const } : {}),
                       }}
                     >
                       {display}
@@ -235,10 +264,49 @@ function XlsxSheetImpl({ data, title, percentCols = [], rawNumberCols = [], bold
                       )}
                     </td>
                   );
-                })}
-              </tr>
-            );
-          })}
+  }
+
+  const colGroupEl = colWidths && (
+    <colgroup>
+      {colWidths.map((w, i) => (
+        <col key={i} style={{ width: widthOverrides[i] ? `${widthOverrides[i]}px` : w }} />
+      ))}
+    </colgroup>
+  );
+
+  const headerRows = data.slice(0, firstBodyIdx);
+  const bodyRows = data.slice(firstBodyIdx);
+
+  return (
+    <div className="rounded-xl border border-neutral-200 bg-white shadow-sm">
+      {title && (
+        <div className="px-4 py-2.5 border-b border-neutral-200 bg-gradient-to-r from-neutral-50 to-white rounded-t-xl">
+          <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-neutral-700">{title}</div>
+        </div>
+      )}
+      {/* Header table — sticky at top */}
+      {headerRows.length > 0 && (
+        <div className="sticky z-30 bg-white" style={{ top: stickyOffset }}>
+          <table
+            style={{ fontFamily: '"Trebuchet MS", "Lucida Sans", Tahoma, sans-serif' }}
+            className={cn("w-full border-collapse text-[9px] tabular", autoLayout && !colWidths ? "table-auto" : "table-fixed")}
+          >
+            {colGroupEl}
+            <thead>
+              {headerRows.map((row, rIdx) => renderRow(row, rIdx))}
+            </thead>
+          </table>
+        </div>
+      )}
+      {/* Body table */}
+      <table
+        ref={tableRef}
+        style={{ fontFamily: '"Trebuchet MS", "Lucida Sans", Tahoma, sans-serif' }}
+        className={cn("w-full border-collapse text-[9px] tabular", autoLayout && !colWidths ? "table-auto" : "table-fixed")}
+      >
+        {colGroupEl}
+        <tbody>
+          {bodyRows.map((row, i) => renderRow(row, i + firstBodyIdx))}
         </tbody>
       </table>
     </div>

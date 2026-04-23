@@ -984,7 +984,7 @@ function CFRDetailDB({ data, simplified, selected = [], setSelected, active = tr
       "Date", "G703", "Draw", "Description", "Commentary or\nVendor",
       "Gross\nAmount", "Retainage", "Net\nAmount",
       "Gross\nAmount", "Retainage", "Net\nAmount",
-      "Bid Line\nItem", "Vendor", "Paid By", "Backup", "Received K1", "Type",
+      "Bid Line Item", "Vendor", "Paid By", "Backup", "Received K1", "Type",
     ]);
 
     let lastDiv = -1;
@@ -995,7 +995,7 @@ function CFRDetailDB({ data, simplified, selected = [], setSelected, active = tr
         lastDiv = e.divNum;
       }
       out.push([
-        e.date ? new Date(e.date).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }) : "",
+        e.date ? formatDate(e.date) : "",
         e.g703 ?? "",
         e.drawNum ?? "",
         e.description,
@@ -1115,11 +1115,11 @@ function CFRDetailDB({ data, simplified, selected = [], setSelected, active = tr
         rawNumberCols={[1, 2]}
         centerCols={[0, 1, 2]}
         colWidths={[
-          "4%",    // Date
-          "2%",    // G703 #
-          "2%",    // Draw
-          "13%",   // Description
-          "14%",   // Commentary/Vendor
+          "5%",    // Date
+          "3%",    // G703 #
+          "3%",    // Draw
+          "12%",   // Description
+          "13%",   // Commentary/Vendor
           "5%",    // Debit Gross
           "4%",    // Debit Retainage
           "5%",    // Debit Net
@@ -1131,7 +1131,7 @@ function CFRDetailDB({ data, simplified, selected = [], setSelected, active = tr
           "5%",    // Paid By
           "4%",    // Backup
           "4%",    // Received K1
-          "5%",    // Type
+          "4%",    // Type
         ]}
         rowAccentFn={(_rIdx, row) => {
           const debit = row[5];
@@ -2664,22 +2664,24 @@ function DrawDetailView({ data, draw, drawLineItems, onBack }: {
                       <colgroup>
                         {showDebitCredit ? (
                           <>
-                            <col style={{ width: "28%" }} />
+                            <col style={{ width: "24%" }} />
+                            <col style={{ width: "9%" }} />
+                            <col style={{ width: "9%" }} />
+                            <col style={{ width: "9%" }} />
                             <col style={{ width: "10%" }} />
-                            <col style={{ width: "10%" }} />
-                            <col style={{ width: "10%" }} />
-                            <col style={{ width: "7%" }} />
-                            <col style={{ width: "12%" }} />
+                            <col style={{ width: "6%" }} />
                             <col style={{ width: "11%" }} />
-                            <col style={{ width: "12%" }} />
+                            <col style={{ width: "11%" }} />
+                            <col style={{ width: "11%" }} />
                           </>
                         ) : (
                           <>
-                            <col style={{ width: "45%" }} />
-                            <col style={{ width: "14%" }} />
-                            <col style={{ width: "14%" }} />
-                            <col style={{ width: "14%" }} />
+                            <col style={{ width: "36%" }} />
                             <col style={{ width: "13%" }} />
+                            <col style={{ width: "13%" }} />
+                            <col style={{ width: "13%" }} />
+                            <col style={{ width: "13%" }} />
+                            <col style={{ width: "12%" }} />
                           </>
                         )}
                       </colgroup>
@@ -2689,6 +2691,7 @@ function DrawDetailView({ data, draw, drawLineItems, onBack }: {
                           <th className="text-right py-2 px-3">Budget</th>
                           <th className="text-right py-2 px-3">Total Spend</th>
                           <th className="text-right py-2 px-3">Remaining</th>
+                          <th className="text-right py-2 px-3 text-boulder-700">Draw #{draw.number}</th>
                           <th className={cn("text-right py-2", showDebitCredit ? "px-3" : "pl-3 pr-5")}>%</th>
                           {showDebitCredit && <th className="text-center py-2 px-3 text-red-700 font-normal">Gross Amount</th>}
                           {showDebitCredit && <th className="text-center py-2 px-3 text-red-700 font-normal">Retainage</th>}
@@ -2726,6 +2729,20 @@ function DrawDetailView({ data, draw, drawLineItems, onBack }: {
                               <td className={cn("py-2.5 px-3 text-right font-semibold", over ? "text-red-600" : "text-emerald-700")}>
                                 {over ? `(${formatCurrency(-rem)})` : formatCurrency(rem)}
                               </td>
+                              {(() => {
+                                const bliName = (b.name || "").trim().toLowerCase();
+                                const nameMatches = (s?: string | null) => !!s && s.toLowerCase().includes(bliName);
+                                const currentDrawSum = data.transactions
+                                  .filter((t) => t.drawNumber === draw.number &&
+                                    (t.bidLineItemId === b.id ||
+                                     (t.divisionId === b.divisionId && (nameMatches(t.description) || nameMatches(t.commentary) || nameMatches(t.counterparty)))))
+                                  .reduce((s, t) => s + t.amountCents, 0);
+                                return (
+                                  <td className="py-2.5 px-3 text-right tabular text-boulder-700 font-medium">
+                                    {currentDrawSum ? formatCurrency(currentDrawSum) : "—"}
+                                  </td>
+                                );
+                              })()}
                               <td className={cn("py-2.5 text-right", showDebitCredit ? "px-3" : "pl-3 pr-5")}>
                                 <Badge variant={pct > 150 ? "destructive" : pct > 105 ? "warning" : pct > 50 ? "default" : "secondary"} className="tabular">
                                   {pct.toFixed(0)}%
@@ -2758,6 +2775,12 @@ function DrawDetailView({ data, draw, drawLineItems, onBack }: {
                                 <td className="py-2 px-3 text-right tabular text-neutral-900">{formatCurrency(totalBudget)}</td>
                                 <td className="py-2 px-3 text-right tabular text-neutral-900">{formatCurrency(totalActual)}</td>
                                 <td className={cn("py-2 px-3 text-right tabular", totalRemaining < 0 ? "text-red-600" : "text-emerald-700")}>{formatCurrency(totalRemaining)}</td>
+                                {(() => {
+                                  const curDrawSum = data.transactions
+                                    .filter((t) => t.drawNumber === draw.number && items.some((b) => b.id === t.bidLineItemId || b.divisionId === t.divisionId))
+                                    .reduce((s, t) => s + t.amountCents, 0);
+                                  return <td className="py-2 px-3 text-right tabular text-boulder-700">{curDrawSum ? formatCurrency(curDrawSum) : "—"}</td>;
+                                })()}
                                 <td className={cn("py-2 text-right tabular text-neutral-700", showDebitCredit ? "px-3" : "pl-3 pr-5")}>
                                   {totalBudget > 0 ? `${((totalActual / totalBudget) * 100).toFixed(0)}%` : "—"}
                                 </td>
@@ -2772,16 +2795,16 @@ function DrawDetailView({ data, draw, drawLineItems, onBack }: {
                               {showDebitCredit && (
                                 <>
                                   <tr className="border-t border-neutral-200 bg-emerald-50/50">
-                                    <td colSpan={5} className="py-1.5 pl-5 pr-3 text-right text-[10px] uppercase tracking-wider text-emerald-800 font-bold">Total Credit →</td>
+                                    <td colSpan={6} className="py-1.5 pl-5 pr-3 text-right text-[10px] uppercase tracking-wider text-emerald-800 font-bold">Total Credit →</td>
                                     <td className="py-1.5 px-3 text-right tabular text-emerald-700 font-semibold">{formatCurrency(credG)}</td>
                                     <td className="py-1.5 px-3 text-right tabular text-emerald-700 font-semibold">{credR ? formatCurrency(credR) : "—"}</td>
                                     <td className="py-1.5 pl-3 pr-5 text-right tabular text-emerald-700 font-semibold">{formatCurrency(credN)}</td>
                                   </tr>
                                   <tr className="border-t border-neutral-300 bg-amber-50/70 font-bold">
-                                    <td colSpan={5} className="py-1.5 pl-5 pr-3 text-right text-[10px] uppercase tracking-wider text-amber-800">Difference →</td>
-                                    <td className={cn("py-1.5 px-3 text-right tabular", diffG < 0 ? "text-red-600" : "text-emerald-700")}>{formatCurrency(diffG)}</td>
-                                    <td className={cn("py-1.5 px-3 text-right tabular", diffR < 0 ? "text-red-600" : "text-emerald-700")}>{formatCurrency(diffR)}</td>
-                                    <td className={cn("py-1.5 pl-3 pr-5 text-right tabular", diffN < 0 ? "text-red-600" : "text-emerald-700")}>{formatCurrency(diffN)}</td>
+                                    <td colSpan={6} className="py-1.5 pl-5 pr-3 text-right text-[10px] uppercase tracking-wider text-amber-800">Difference →</td>
+                                    <td className={cn("py-1.5 px-3 text-right tabular font-bold", diffG < 0 ? "text-red-500" : "text-emerald-600")}>{formatCurrency(diffG)}</td>
+                                    <td className={cn("py-1.5 px-3 text-right tabular font-bold", diffR < 0 ? "text-red-500" : "text-emerald-600")}>{formatCurrency(diffR)}</td>
+                                    <td className={cn("py-1.5 pl-3 pr-5 text-right tabular font-bold", diffN < 0 ? "text-red-500" : "text-emerald-600")}>{formatCurrency(diffN)}</td>
                                   </tr>
                                 </>
                               )}

@@ -148,6 +148,14 @@ table [class*="text-pink-"],
 table [class*="text-orange-"] {
   color: #b91c1c !important;
 }
+/* Bright red for status badges (No, To Be Confirmed, To Be Paid) */
+table .text-red-500 {
+  color: #ef4444 !important;
+}
+/* Bright green for positive difference */
+table .text-emerald-600 {
+  color: #16a34a !important;
+}
 table [class*="text-amber-"],
 table [class*="text-yellow-"] {
   color: #a16207 !important;
