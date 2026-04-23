@@ -48,7 +48,7 @@ export function ProjectNav({ projectId }: { projectId: string }) {
           </div>
         }
       />
-      <nav className="border-b border-neutral-200 bg-white px-6">
+      <nav className="sticky top-14 z-20 border-b border-neutral-200 bg-white px-6">
         <ul className="flex items-center gap-1 -mb-px overflow-x-auto">
           {visible.map((t) => {
             const active =

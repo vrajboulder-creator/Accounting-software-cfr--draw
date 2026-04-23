@@ -18,8 +18,8 @@ export function formatCurrency(cents: number, opts?: { showCents?: boolean; comp
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
-    minimumFractionDigits: opts?.showCents ? 2 : 0,
-    maximumFractionDigits: opts?.showCents ? 2 : 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(dollars);
 }
 

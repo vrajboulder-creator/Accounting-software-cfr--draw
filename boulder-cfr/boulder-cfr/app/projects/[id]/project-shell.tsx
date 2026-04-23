@@ -1,6 +1,7 @@
 "use client";
 import * as React from "react";
 import { useTransition } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { TopBar } from "@/components/shell";
 import { useRole } from "@/components/role-context";
@@ -427,12 +428,12 @@ export function OverviewTab({ data, setActiveTab, onOpenDraw }: { data: ProjectP
                           );
                         })() : <span className="text-xs text-neutral-400">—</span>}
                       </td>
-                      <td className="py-3 px-3 text-right tabular text-neutral-700">{formatCurrency(gross, { compact: true })}</td>
-                      <td className="py-3 px-3 text-right tabular text-amber-700">{formatCurrency(retainage, { compact: true })}</td>
-                      <td className="py-3 px-3 text-right tabular font-semibold text-neutral-950">{formatCurrency(net, { compact: true })}</td>
+                      <td className="py-3 px-3 text-right tabular text-neutral-700">{formatCurrency(gross)}</td>
+                      <td className="py-3 px-3 text-right tabular text-amber-700">{formatCurrency(retainage)}</td>
+                      <td className="py-3 px-3 text-right tabular font-semibold text-neutral-950">{formatCurrency(net)}</td>
                       <td className="py-3 px-3 text-right tabular">
                         <span className={cn("font-semibold", isPaid ? "text-emerald-600" : received > 0 ? "text-amber-600" : "text-neutral-400")}>
-                          {received > 0 ? formatCurrency(received, { compact: true }) : "—"}
+                          {received > 0 ? formatCurrency(received) : "—"}
                         </span>
                       </td>
                       <td className="py-3 pr-4 text-center">
@@ -782,9 +783,8 @@ function CFRSummaryDB({ data }: { data: ProjectPageData }) {
   );
 }
 
-function CFRBidDB({ data }: { data: ProjectPageData }) {
+function CFRBidDB({ data, selected = "all" }: { data: ProjectPageData; selected?: string }) {
   const { divisions, bidLineItems } = data;
-  const [selected, setSelected] = React.useState<string>("all");
 
   const rowsBySection = React.useMemo(() => {
     const out: Cell[][] = [];
@@ -818,37 +818,29 @@ function CFRBidDB({ data }: { data: ProjectPageData }) {
   });
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-3">
-        <label className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">Division</label>
-        <select
-          value={selected}
-          onChange={(e) => setSelected(e.target.value)}
-          className="text-sm border border-neutral-300 rounded-lg px-3 py-1.5 bg-white text-neutral-900 focus:outline-none focus:ring-2 focus:ring-boulder-400"
-        >
-          <option value="all">All divisions</option>
-          {divisions.map((d) => (
-            <option key={d.id} value={`${d.number}. ${d.name}`}>{d.number}. {d.name}</option>
-          ))}
-        </select>
-      </div>
-      <XlsxSheet
-        data={rowsBySection}
-        title="Bid Summary"
-        sectionRows={sectionRows}
-        mergeRows={sectionRows}
-        boldRows={boldRows}
-        rawNumberCols={[0]}
-        percentCols={[6]}
-        colWidths={["4%", "30%", "12%", "13%", "13%", "13%", "15%"]}
-      />
-    </div>
+    <XlsxSheet
+      data={rowsBySection}
+      sectionRows={sectionRows}
+      mergeRows={sectionRows}
+      boldRows={boldRows}
+      rawNumberCols={[0]}
+      percentCols={[6]}
+      colWidths={["4%", "30%", "12%", "13%", "13%", "13%", "15%"]}
+    />
   );
 }
 
-function CFRDetailDB({ data, simplified }: { data: ProjectPageData; simplified?: boolean }) {
+function CFRDetailDB({ data, simplified, selected = "all", setSelected, active = true }: { data: ProjectPageData; simplified?: boolean; selected?: string; setSelected?: (v: string) => void; active?: boolean }) {
   const { divisions, transactions, receivedFunds, bidLineItems } = data;
-  const [selected, setSelected] = React.useState<string>("all");
+  const [search, setSearch] = React.useState("");
+  const [fG703, setFG703] = React.useState("all");
+  const [fDescription, setFDescription] = React.useState("all");
+  const [fCommentary, setFCommentary] = React.useState("all");
+  const [fVendor, setFVendor] = React.useState("all");
+  const [fPaidBy, setFPaidBy] = React.useState("all");
+  const [fBackup, setFBackup] = React.useState("all");
+  const [fReceivedK1, setFReceivedK1] = React.useState("all");
+  const [fType, setFType] = React.useState("all");
 
   const rows = React.useMemo(() => {
     const blMap = new Map(bidLineItems.map((b) => [b.id, b]));
@@ -917,6 +909,27 @@ function CFRDetailDB({ data, simplified }: { data: ProjectPageData; simplified?:
       const divNum = parseInt(selected.split(".")[0]);
       filtered = filtered.filter((e) => e.divNum === divNum);
     }
+    if (fG703 !== "all") filtered = filtered.filter((e) => String(e.g703 ?? "") === fG703);
+    if (fDescription !== "all") filtered = filtered.filter((e) => e.description === fDescription);
+    if (fCommentary !== "all") filtered = filtered.filter((e) => e.commentary === fCommentary);
+    if (fVendor !== "all") filtered = filtered.filter((e) => e.counterparty === fVendor);
+    if (fPaidBy !== "all") filtered = filtered.filter((e) => e.paidBy === fPaidBy);
+    if (fBackup !== "all") filtered = filtered.filter((e) => e.backup === fBackup);
+    if (fReceivedK1 !== "all") filtered = filtered.filter((e) => (e.receivedK1 || "NA") === fReceivedK1);
+    if (fType !== "all") filtered = filtered.filter((e) => e.type === fType);
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      filtered = filtered.filter((e) =>
+        e.description.toLowerCase().includes(q) ||
+        e.commentary.toLowerCase().includes(q) ||
+        e.counterparty.toLowerCase().includes(q) ||
+        e.bidItem.toLowerCase().includes(q) ||
+        e.paidBy.toLowerCase().includes(q) ||
+        e.backup.toLowerCase().includes(q) ||
+        e.receivedK1.toLowerCase().includes(q) ||
+        e.type.toLowerCase().includes(q)
+      );
+    }
 
     if (simplified) {
       const groups = new Map<string, Entry>();
@@ -952,47 +965,85 @@ function CFRDetailDB({ data, simplified }: { data: ProjectPageData; simplified?:
       "", "", "", "", "",
       "Debits", "", "",
       "Credits", "", "",
-      "Other Information", "", "", "", "", "", "",
+      "Other Information", "", "", "", "", "",
     ]);
-    // Column header row
+    // Column header row (use \n for two-line labels)
     out.push([
-      "Date", "G703 #", "Draw", "Description", "Commentary or Counterparty",
-      "Gross Amount", "Retainage", "Net Amount",   // Debits
-      "Gross Amount", "Retainage", "Net Amount",   // Credits
-      "Bid Line Item", "Counterparty", "Paid By", "Backup", "Received K1", "Type", "Unique ID",
+      "Date", "G703", "Draw", "Description", "Commentary or\nVendor",
+      "Gross\nAmount", "Retainage", "Net\nAmount",
+      "Gross\nAmount", "Retainage", "Net\nAmount",
+      "Bid Line\nItem", "Vendor", "Paid By", "Backup", "Received K1", "Type",
     ]);
 
     let lastDiv = -1;
     for (const e of filtered) {
       if (e.divNum !== lastDiv) {
         const div = divisions.find((d) => d.number === e.divNum);
-        out.push([`${e.divNum}. ${div?.name ?? ""}`, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
+        out.push([`${e.divNum}. ${div?.name ?? ""}`, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
         lastDiv = e.divNum;
       }
-      const uniqueId = simplified ? "" : e.uniqueCode;
       out.push([
-        e.date || "",
+        e.date ? new Date(e.date).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }) : "",
         e.g703 ?? "",
         e.drawNum ?? "",
         e.description,
         e.commentary,
-        e.debitGross / 100 || null,
-        e.debitRetn / 100 || null,
-        e.debitNet / 100 || null,
-        e.creditGross / 100 || null,
-        e.creditRetn / 100 || null,
-        e.creditNet / 100 || null,
+        e.debitGross / 100 || "—",
+        e.debitRetn / 100 || "—",
+        e.debitNet / 100 || "—",
+        e.creditGross / 100 || "—",
+        e.creditRetn / 100 || "—",
+        e.creditNet / 100 || "—",
         e.bidItem,
         e.counterparty,
         e.paidBy,
-        e.backup,
-        e.receivedK1,
+        (() => {
+          const n = Number(e.backup);
+          return Number.isFinite(n) && e.backup !== "" ? Math.round(n).toString() : e.backup;
+        })(),
+        e.receivedK1 || "NA",
         e.type,
-        uniqueId,
       ]);
     }
     return out;
-  }, [transactions, receivedFunds, divisions, bidLineItems, selected, simplified]);
+  }, [transactions, receivedFunds, divisions, bidLineItems, selected, simplified, search, fG703, fDescription, fCommentary, fVendor, fPaidBy, fBackup, fReceivedK1, fType]);
+
+  const uniqueOptions = React.useMemo(() => {
+    const all = { g703: new Set<string>(), description: new Set<string>(), commentary: new Set<string>(), vendor: new Set<string>(), paidBy: new Set<string>(), backup: new Set<string>(), receivedK1: new Set<string>(), type: new Set<string>() };
+    const divMap = new Map(divisions.map((d) => [d.id, d.number]));
+    for (const t of transactions) {
+      const g703 = ((t as unknown as { g703?: number | null }).g703 ?? divMap.get(t.divisionId) ?? "");
+      all.g703.add(String(g703));
+      if (t.description) all.description.add(t.description);
+      if (t.commentary) all.commentary.add(t.commentary);
+      if (t.counterparty) all.vendor.add(t.counterparty);
+      if (t.paidBy) all.paidBy.add(t.paidBy);
+      const bk = (t as unknown as { backup?: string }).backup;
+      if (bk) all.backup.add(bk);
+      const rk = (t as unknown as { receivedK1?: string }).receivedK1;
+      all.receivedK1.add(rk || "NA");
+      const ty = (t as unknown as { paymentType?: string }).paymentType || t.type;
+      if (ty) all.type.add(ty);
+    }
+    for (const r of receivedFunds) {
+      const g703 = ((r as unknown as { g703?: number | null }).g703 ?? divMap.get(r.divisionId) ?? "");
+      all.g703.add(String(g703));
+      if (r.description) all.description.add(r.description);
+      if (r.counterparty) all.vendor.add(r.counterparty);
+      all.receivedK1.add("NA");
+      all.type.add("credit");
+    }
+    return {
+      g703: [...all.g703].sort((a, b) => Number(a) - Number(b)),
+      description: [...all.description].sort(),
+      commentary: [...all.commentary].sort(),
+      vendor: [...all.vendor].sort(),
+      paidBy: [...all.paidBy].sort(),
+      backup: [...all.backup].sort(),
+      receivedK1: [...all.receivedK1].sort(),
+      type: [...all.type].sort(),
+    };
+  }, [transactions, receivedFunds, divisions]);
 
   const divisionRows = rows.reduce<number[]>((acc, r, i) => {
     if (i < 2) return acc;
@@ -1000,48 +1051,92 @@ function CFRDetailDB({ data, simplified }: { data: ProjectPageData; simplified?:
     return acc;
   }, []);
 
+  const hasFilters = search || fG703 !== "all" || fDescription !== "all" || fCommentary !== "all" || fVendor !== "all" || fPaidBy !== "all" || fBackup !== "all" || fReceivedK1 !== "all" || fType !== "all";
+
+  const [topbarSlot, setTopbarSlot] = React.useState<HTMLElement | null>(null);
+  React.useEffect(() => {
+    setTopbarSlot(document.getElementById("topbar-slot"));
+  }, []);
+
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-3">
-        <label className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">Division</label>
-        <select
-          value={selected}
-          onChange={(e) => setSelected(e.target.value)}
-          className="text-sm border border-neutral-300 rounded-lg px-3 py-1.5 bg-white text-neutral-900 focus:outline-none focus:ring-2 focus:ring-boulder-400"
-        >
-          <option value="all">All divisions</option>
-          {divisions.map((d) => (
-            <option key={d.id} value={`${d.number}. ${d.name}`}>{d.number}. {d.name}</option>
+    <div>
+      {active && topbarSlot && createPortal(
+        <div className="flex items-center gap-1.5 flex-wrap justify-end ml-auto">
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search…"
+            className="shrink-0 h-7 text-xs w-64"
+          />
+          {setSelected && (
+            <select
+              value={selected}
+              onChange={(e) => setSelected(e.target.value)}
+              className="shrink-0 text-[10px] border border-neutral-300 rounded-md px-1.5 py-1 bg-white text-neutral-900 focus:outline-none focus:ring-1 focus:ring-boulder-400 max-w-[140px]"
+            >
+              <option value="all">Division</option>
+              {divisions.map((d) => (
+                <option key={d.id} value={`${d.number}. ${d.name}`}>{d.number}. {d.name}</option>
+              ))}
+            </select>
+          )}
+          {[
+            { label: "G703", val: fG703, set: setFG703, opts: uniqueOptions.g703 },
+            { label: "Description", val: fDescription, set: setFDescription, opts: uniqueOptions.description },
+            { label: "Commentary", val: fCommentary, set: setFCommentary, opts: uniqueOptions.commentary },
+            { label: "Vendor", val: fVendor, set: setFVendor, opts: uniqueOptions.vendor },
+            { label: "Paid By", val: fPaidBy, set: setFPaidBy, opts: uniqueOptions.paidBy },
+            { label: "Backup", val: fBackup, set: setFBackup, opts: uniqueOptions.backup },
+            { label: "Received", val: fReceivedK1, set: setFReceivedK1, opts: uniqueOptions.receivedK1 },
+            { label: "Type", val: fType, set: setFType, opts: uniqueOptions.type },
+          ].map((f) => (
+            <select
+              key={f.label}
+              value={f.val}
+              onChange={(e) => f.set(e.target.value)}
+              className="shrink-0 text-[10px] border border-neutral-300 rounded-md px-1.5 py-1 bg-white text-neutral-900 focus:outline-none focus:ring-1 focus:ring-boulder-400 max-w-[120px]"
+            >
+              <option value="all">{f.label}</option>
+              {f.opts.map((o) => <option key={o} value={o}>{o}</option>)}
+            </select>
           ))}
-        </select>
-        <span className="text-xs text-neutral-500">{rows.length - 1 - divisionRows.length} entries</span>
-      </div>
+          {hasFilters && (
+            <button
+              onClick={() => { setSearch(""); setFG703("all"); setFDescription("all"); setFCommentary("all"); setFVendor("all"); setFPaidBy("all"); setFBackup("all"); setFReceivedK1("all"); setFType("all"); }}
+              title="Clear all"
+              className="shrink-0 text-[10px] font-bold text-boulder-600 hover:text-boulder-800 px-1"
+            >
+              ✕
+            </button>
+          )}
+        </div>,
+        topbarSlot
+      )}
       <XlsxSheet
         data={rows}
-        title={simplified ? "Simplified Spend" : "Detailed Spend"}
         sectionRows={[0, ...divisionRows]}
         mergeRows={[0, ...divisionRows]}
         boldRows={[1]}
         rawNumberCols={[1, 2]}
+        centerCols={[0, 1, 2]}
         colWidths={[
-          "5%",   // Date
-          "2.5%", // G703 #
-          "2.5%", // Draw
-          "9.5%", // Description
-          "9.5%", // Commentary
-          "5.5%", // Debit Gross
-          "4%",   // Debit Retn
-          "5.5%", // Debit Net
-          "5.5%", // Credit Gross
-          "4%",   // Credit Retn
-          "5.5%", // Credit Net
-          "7.5%", // Bid Line Item
-          "6.5%", // Counterparty
-          "4.5%", // Paid By
-          "3.5%", // Backup
-          "4.5%", // Received K1
-          "4%",   // Type
-          "6%",   // Unique ID
+          "4%",    // Date
+          "2%",    // G703 #
+          "2%",    // Draw
+          "13%",   // Description
+          "14%",   // Commentary/Vendor
+          "5%",    // Debit Gross
+          "4%",    // Debit Retainage
+          "5%",    // Debit Net
+          "5%",    // Credit Gross
+          "4%",    // Credit Retainage
+          "5%",    // Credit Net
+          "10%",   // Bid Line Item
+          "9%",    // Vendor
+          "5%",    // Paid By
+          "4%",    // Backup
+          "4%",    // Received K1
+          "5%",    // Type
         ]}
         rowAccentFn={(_rIdx, row) => {
           const debit = row[5];
@@ -1060,6 +1155,26 @@ function CFRDetailDB({ data, simplified }: { data: ProjectPageData; simplified?:
 export function CFRTab({ data }: { data: ProjectPageData }) {
   const { divisions, bidLineItems, transactions, receivedFunds } = data;
   const { role } = useRole();
+  const [activeTab, setActiveTab] = React.useState("summary");
+  const [selectedDiv, setSelectedDiv] = React.useState("all");
+  const [filterInTopBar, setFilterInTopBar] = React.useState(false);
+  const filterAnchorRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const onScroll = () => {
+      if (!filterAnchorRef.current) return;
+      const rect = filterAnchorRef.current.getBoundingClientRect();
+      setFilterInTopBar(rect.bottom < 56);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [activeTab]);
+
+  const [topbarSlot, setTopbarSlot] = React.useState<HTMLElement | null>(null);
+  React.useEffect(() => {
+    setTopbarSlot(document.getElementById("topbar-slot"));
+  }, []);
 
 
   if (role === "owner") {
@@ -1081,10 +1196,31 @@ export function CFRTab({ data }: { data: ProjectPageData }) {
     net: divisions.reduce((s, d) => s + d.netReceivedCents, 0),
   };
   const remaining = totals.scheduled - totals.gross;
+  const showDivFilter = activeTab === "bid" || activeTab === "simplified" || activeTab === "detail";
+
+  const entryCount = React.useMemo(() => {
+    const divNumFilter = selectedDiv === "all" ? null : parseInt(selectedDiv.split(".")[0]);
+    const divMap = new Map(divisions.map((d) => [d.id, d.number]));
+    if (activeTab === "bid") {
+      let n = 0;
+      for (const b of bidLineItems) {
+        if (divNumFilter === null || divMap.get(b.divisionId) === divNumFilter) n++;
+      }
+      return n;
+    }
+    let n = 0;
+    for (const t of transactions) {
+      if (divNumFilter === null || divMap.get(t.divisionId) === divNumFilter) n++;
+    }
+    for (const r of receivedFunds) {
+      if (divNumFilter === null || divMap.get(r.divisionId) === divNumFilter) n++;
+    }
+    return n;
+  }, [activeTab, transactions, receivedFunds, bidLineItems, divisions, selectedDiv]);
 
   return (
-    <main className="w-full min-w-0 px-6 py-8">
-      <div className="flex items-end justify-between gap-6 flex-wrap">
+    <main className="w-full min-w-0 px-6 py-6">
+      <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
           <div className="text-[11px] uppercase tracking-[0.18em] font-semibold text-boulder-600">Cost-to-Finish Report</div>
           <h1 className="mt-1.5 font-display text-3xl font-bold tracking-tight text-neutral-950">Internal cost tracking</h1>
@@ -1097,31 +1233,66 @@ export function CFRTab({ data }: { data: ProjectPageData }) {
         </div>
       </div>
 
-      <Tabs defaultValue="summary" className="mt-6">
-        <TabsList>
-          <TabsTrigger value="summary">Summary</TabsTrigger>
-          <TabsTrigger value="bid">Bid</TabsTrigger>
-          <TabsTrigger value="simplified">Simplified</TabsTrigger>
-          <TabsTrigger value="detail">Detail</TabsTrigger>
-          {["contractor_admin","contractor_pm"].includes(role) && (
-            <TabsTrigger value="manage">Manage</TabsTrigger>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <TabsList>
+            <TabsTrigger value="summary">Summary</TabsTrigger>
+            <TabsTrigger value="bid">Bid</TabsTrigger>
+            <TabsTrigger value="simplified">Simplified</TabsTrigger>
+            <TabsTrigger value="detail">Detail</TabsTrigger>
+            {["contractor_admin","contractor_pm"].includes(role) && (
+              <TabsTrigger value="manage">Manage</TabsTrigger>
+            )}
+          </TabsList>
+          {showDivFilter && activeTab === "bid" && (
+            <div ref={filterAnchorRef} className="flex items-center gap-3" style={{ visibility: filterInTopBar ? "hidden" : "visible" }}>
+              <span className="text-xs text-neutral-500">{entryCount} entries</span>
+              <label className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">Division</label>
+              <select
+                value={selectedDiv}
+                onChange={(e) => setSelectedDiv(e.target.value)}
+                className="text-sm border border-neutral-300 rounded-lg px-3 py-1.5 bg-white text-neutral-900 focus:outline-none focus:ring-2 focus:ring-boulder-400"
+              >
+                <option value="all">All divisions</option>
+                {divisions.map((d) => (
+                  <option key={d.id} value={`${d.number}. ${d.name}`}>{d.number}. {d.name}</option>
+                ))}
+              </select>
+            </div>
           )}
-        </TabsList>
+        </div>
+
+        {showDivFilter && filterInTopBar && topbarSlot && activeTab !== "simplified" && activeTab !== "detail" && createPortal(
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-neutral-500">{entryCount} entries</span>
+            <select
+              value={selectedDiv}
+              onChange={(e) => setSelectedDiv(e.target.value)}
+              className="text-xs border border-neutral-300 rounded-md px-2 py-1 bg-white text-neutral-900 focus:outline-none focus:ring-2 focus:ring-boulder-400"
+            >
+              <option value="all">All divisions</option>
+              {divisions.map((d) => (
+                <option key={d.id} value={`${d.number}. ${d.name}`}>{d.number}. {d.name}</option>
+              ))}
+            </select>
+          </div>,
+          topbarSlot
+        )}
 
         <TabsContent value="summary">
           <CFRSummaryDB data={data} />
         </TabsContent>
 
-        <TabsContent value="bid">
-          <CFRBidDB data={data} />
+        <TabsContent value="bid" className="mt-3">
+          <CFRBidDB data={data} selected={selectedDiv} />
         </TabsContent>
 
-        <TabsContent value="simplified" forceMount className="data-[state=inactive]:hidden">
-          <CFRDetailDB data={data} simplified />
+        <TabsContent value="simplified" forceMount className="data-[state=inactive]:hidden mt-3">
+          <CFRDetailDB data={data} simplified selected={selectedDiv} setSelected={setSelectedDiv} active={activeTab === "simplified"} />
         </TabsContent>
 
-        <TabsContent value="detail" forceMount className="data-[state=inactive]:hidden">
-          <CFRDetailDB data={data} />
+        <TabsContent value="detail" forceMount className="data-[state=inactive]:hidden mt-3">
+          <CFRDetailDB data={data} selected={selectedDiv} setSelected={setSelectedDiv} active={activeTab === "detail"} />
         </TabsContent>
 
         <TabsContent value="manage">
@@ -1171,7 +1342,7 @@ export function BudgetTab({ data }: { data: ProjectPageData }) {
           {!latestDraw ? (
             <div className="rounded-xl border border-neutral-200 bg-white p-8 text-center text-sm text-neutral-500">No draws yet.</div>
           ) : (
-            <div className="rounded-xl border-2 border-neutral-900 bg-white overflow-hidden font-serif text-[13px] text-neutral-900">
+            <div style={{ fontFamily: '"Times New Roman", Times, serif' }} className="aia-form rounded-xl border-2 border-neutral-900 bg-white overflow-hidden text-[13px] text-neutral-900 w-full">
               {/* Title bar */}
               <div className="border-b-2 border-neutral-900 px-5 py-3 flex items-baseline justify-between">
                 <div className="font-bold text-[15px] uppercase tracking-wide">Application and Certification for Payment</div>
@@ -1251,12 +1422,9 @@ export function BudgetTab({ data }: { data: ProjectPageData }) {
                           <td className={cn("align-top py-0.5 pr-2 w-8", row.bold && "font-bold", row.caption && "text-[10px] text-neutral-500")}>{row.n}</td>
                           <td className={cn("align-top py-0.5 pr-2", row.bold && "font-bold", row.sub && "pl-4", row.caption && "text-[10px] text-neutral-500", row.header && "font-bold")}>{row.label}</td>
                           <td className={cn("align-top py-0.5 text-right tabular-nums whitespace-nowrap", row.bold && "font-bold", row.underline && row.value != null && "border-b border-neutral-400")}>
-                            {row.value != null ? (
-                              <>
-                                {row.amount && <span className="mr-2 text-neutral-500">{row.amount}</span>}
-                                {formatCurrency(row.value)}
-                              </>
-                            ) : row.amount ? <span className="text-neutral-500">{row.amount}</span> : null}
+                            {row.value != null
+                              ? formatCurrency(row.value)
+                              : row.amount ? <span className="text-neutral-500">{row.amount}</span> : null}
                           </td>
                         </tr>
                       ))}
@@ -1358,7 +1526,7 @@ export function BudgetTab({ data }: { data: ProjectPageData }) {
           {!latestDraw ? (
             <div className="rounded-xl border border-neutral-200 bg-white p-8 text-center text-sm text-neutral-500">No draws yet.</div>
           ) : (
-            <div className="rounded-xl border-2 border-neutral-900 bg-white overflow-hidden font-serif text-neutral-900">
+            <div style={{ fontFamily: '"Times New Roman", Times, serif' }} className="aia-form rounded-xl border-2 border-neutral-900 bg-white overflow-hidden text-[13px] text-neutral-900 w-full">
               {/* Title bar */}
               <div className="border-b-2 border-neutral-900 px-4 py-2 flex items-baseline justify-between">
                 <div className="font-bold text-[14px] uppercase tracking-wide">Continuation Sheet</div>
@@ -1382,7 +1550,7 @@ export function BudgetTab({ data }: { data: ProjectPageData }) {
               </div>
 
               {/* G703 table */}
-              <div className="overflow-x-auto">
+              <div>
                 <table className="w-full text-[11px] tabular-nums border-collapse">
                   <thead>
                     <tr className="bg-neutral-100 border-b border-neutral-900">
@@ -1390,17 +1558,17 @@ export function BudgetTab({ data }: { data: ProjectPageData }) {
                       <th colSpan={2} className="border-r border-neutral-900 py-1 font-bold uppercase tracking-wide">Work Completed</th>
                       <th colSpan={5} className="py-1"></th>
                     </tr>
-                    <tr className="bg-neutral-50 border-b-2 border-neutral-900 align-bottom text-center text-[10px] font-bold uppercase">
-                      <th className="border-r border-neutral-900 px-1 py-1 w-10">A<br />Item No.</th>
-                      <th className="border-r border-neutral-900 px-2 py-1 text-left min-w-[180px]">B<br />Description of Work</th>
-                      <th className="border-r border-neutral-900 px-1 py-1">C<br />Scheduled Value</th>
-                      <th className="border-r border-neutral-300 px-1 py-1">D<br />From Previous Application<br />(D + E)</th>
-                      <th className="border-r border-neutral-900 px-1 py-1">E<br />This Period</th>
-                      <th className="border-r border-neutral-900 px-1 py-1">F<br />Materials Presently Stored<br />(Not in D or E)</th>
-                      <th className="border-r border-neutral-900 px-1 py-1">G<br />Total Completed and Stored to Date<br />(D + E + F)</th>
-                      <th className="border-r border-neutral-900 px-1 py-1">%<br />(G ÷ C)</th>
-                      <th className="border-r border-neutral-900 px-1 py-1">H<br />Balance to Finish<br />(C − G)</th>
-                      <th className="px-1 py-1">I<br />Retainage<br />(If Variable Rate)</th>
+                    <tr className="bg-neutral-50 border-b-2 border-neutral-900 align-top text-center text-[10px] uppercase">
+                      <th className="border-r border-neutral-900 px-1 py-1"><div className="font-bold text-[12px]">A</div><div className="font-normal mt-0.5">Item No.</div><div className="font-normal text-neutral-500">&nbsp;</div></th>
+                      <th className="border-r border-neutral-900 px-2 py-1"><div className="font-bold text-[12px]">B</div><div className="font-normal mt-0.5">Description of Work</div><div className="font-normal text-neutral-500">&nbsp;</div></th>
+                      <th className="border-r border-neutral-900 px-1 py-1"><div className="font-bold text-[12px]">C</div><div className="font-normal mt-0.5">Scheduled Value</div><div className="font-normal text-neutral-500">&nbsp;</div></th>
+                      <th className="border-r border-neutral-300 px-1 py-1"><div className="font-bold text-[12px]">D</div><div className="font-normal mt-0.5">From Previous</div><div className="font-normal text-neutral-500">(D + E)</div></th>
+                      <th className="border-r border-neutral-900 px-1 py-1"><div className="font-bold text-[12px]">E</div><div className="font-normal mt-0.5">This Period</div><div className="font-normal text-neutral-500">&nbsp;</div></th>
+                      <th className="border-r border-neutral-900 px-1 py-1"><div className="font-bold text-[12px]">F</div><div className="font-normal mt-0.5">Materials Stored</div><div className="font-normal text-neutral-500">(Not in D or E)</div></th>
+                      <th className="border-r border-neutral-900 px-1 py-1 w-32"><div className="font-bold text-[12px]">G</div><div className="font-normal mt-0.5">Total Completed</div><div className="font-normal text-neutral-500">(D + E + F)</div></th>
+                      <th className="border-r border-neutral-900 px-1 py-1 w-32"><div className="font-bold text-[12px]">%</div><div className="font-normal mt-0.5">Percentage</div><div className="font-normal text-neutral-500 mt-8">(G ÷ C)</div></th>
+                      <th className="border-r border-neutral-900 px-1 py-1 w-32"><div className="font-bold text-[12px]">H</div><div className="font-normal mt-0.5">Balance to Finish</div><div className="font-normal text-neutral-500">(C − G)</div></th>
+                      <th className="px-1 py-1 w-32"><div className="font-bold text-[12px]">I</div><div className="font-normal mt-0.5">Retainage</div><div className="font-normal text-neutral-500 mt-8">(If Variable)</div></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1497,15 +1665,15 @@ export function BudgetTab({ data }: { data: ProjectPageData }) {
                       <h3 className="font-display font-bold text-base text-neutral-950">{div.name}</h3>
                     </div>
                     <div className="flex items-center gap-4 text-xs tabular">
-                      <span className="text-neutral-500">Budget: <span className="font-semibold text-neutral-800">{formatCurrency(totalBudget, { compact: true })}</span></span>
-                      <span className="text-neutral-500">Spent: <span className="font-semibold text-neutral-800">{formatCurrency(totalActual, { compact: true })}</span></span>
+                      <span className="text-neutral-500">Budget: <span className="font-semibold text-neutral-800">{formatCurrency(totalBudget)}</span></span>
+                      <span className="text-neutral-500">Spent: <span className="font-semibold text-neutral-800">{formatCurrency(totalActual)}</span></span>
                       <span className={cn("font-semibold", totalRemaining < 0 ? "text-red-600" : "text-emerald-700")}>
-                        {totalRemaining < 0 ? `(${formatCurrency(-totalRemaining, { compact: true })})` : formatCurrency(totalRemaining, { compact: true })} remaining
+                        {totalRemaining < 0 ? `(${formatCurrency(-totalRemaining)})` : formatCurrency(totalRemaining)} remaining
                       </span>
                     </div>
                   </div>
-                  <table className="w-full text-sm tabular">
-                    <thead className="text-[10px] uppercase tracking-wider font-semibold text-neutral-500 bg-neutral-50/40">
+                  <table className="bid-table w-full text-sm tabular">
+                    <thead className="font-mono text-[10px] uppercase tracking-wider font-semibold text-neutral-500 bg-neutral-50/40">
                       <tr>
                         <th className="text-left py-2 pl-5 pr-3">Description</th>
                         <th className="text-right py-2 px-3">Budget</th>
@@ -1528,10 +1696,10 @@ export function BudgetTab({ data }: { data: ProjectPageData }) {
                                 <span className={cn("text-neutral-900", over && pct > 150 && "font-semibold")}>{b.name}</span>
                               </div>
                             </td>
-                            <td className="py-2.5 px-3 text-right text-neutral-500">{formatCurrency(b.budgetCents, { compact: true })}</td>
-                            <td className="py-2.5 px-3 text-right font-medium">{formatCurrency(b.actualCents, { compact: true })}</td>
+                            <td className="py-2.5 px-3 text-right text-neutral-500">{formatCurrency(b.budgetCents)}</td>
+                            <td className="py-2.5 px-3 text-right font-medium">{formatCurrency(b.actualCents)}</td>
                             <td className={cn("py-2.5 px-3 text-right font-semibold", over ? "text-red-600" : "text-emerald-700")}>
-                              {over ? `(${formatCurrency(-rem, { compact: true })})` : formatCurrency(rem, { compact: true })}
+                              {over ? `(${formatCurrency(-rem)})` : formatCurrency(rem)}
                             </td>
                             <td className="py-2.5 pl-3 pr-5 text-right">
                               <Badge variant={pct > 150 ? "destructive" : pct > 105 ? "warning" : pct > 50 ? "default" : "secondary"} className="tabular">
@@ -1545,10 +1713,10 @@ export function BudgetTab({ data }: { data: ProjectPageData }) {
                     <tfoot>
                       <tr className="border-t-2 border-neutral-200 bg-neutral-50 font-bold text-sm">
                         <td className="py-2.5 pl-5 pr-3 text-neutral-700">Total</td>
-                        <td className="py-2.5 px-3 text-right">{formatCurrency(totalBudget, { compact: true })}</td>
-                        <td className="py-2.5 px-3 text-right">{formatCurrency(totalActual, { compact: true })}</td>
+                        <td className="py-2.5 px-3 text-right">{formatCurrency(totalBudget)}</td>
+                        <td className="py-2.5 px-3 text-right">{formatCurrency(totalActual)}</td>
                         <td className={cn("py-2.5 px-3 text-right", totalRemaining < 0 ? "text-red-600" : "text-emerald-700")}>
-                          {totalRemaining < 0 ? `(${formatCurrency(-totalRemaining, { compact: true })})` : formatCurrency(totalRemaining, { compact: true })}
+                          {totalRemaining < 0 ? `(${formatCurrency(-totalRemaining)})` : formatCurrency(totalRemaining)}
                         </td>
                         <td className="py-2.5 pl-3 pr-5 text-right text-neutral-500">
                           {totalBudget > 0 ? `${((totalActual / totalBudget) * 100).toFixed(0)}%` : "—"}
@@ -1596,7 +1764,7 @@ export function DrawsTab({ data, initialDrawId }: { data: ProjectPageData; initi
   if (selectedDrawId) {
     const draw = draws.find((d) => d.id === selectedDrawId)!;
     const dli = fetchedLineItems ?? drawLineItems;
-    return <DrawDetailView project={project} draw={draw} drawLineItems={dli} divisions={divisions} onBack={() => { setSelectedDrawId(null); setFetchedLineItems(null); }} />;
+    return <DrawDetailView data={data} draw={draw} drawLineItems={dli} onBack={() => { setSelectedDrawId(null); setFetchedLineItems(null); }} />;
   }
 
   return (
@@ -1641,9 +1809,9 @@ export function DrawsTab({ data, initialDrawId }: { data: ProjectPageData; initi
                 <td className="py-3 pl-5 pr-3 font-bold text-boulder-700">#{d.number}</td>
                 <td className="py-3 px-3">{formatDate(d.periodEndDate)}</td>
                 <td className="py-3 px-3"><DrawStatusBadge status={d.status} /></td>
-                <td className="py-3 px-3 text-right font-medium">{formatCurrency(d.line4CompletedStoredCents, { compact: true })}</td>
-                <td className="py-3 px-3 text-right text-neutral-500">({formatCurrency(d.line5RetainageCents, { compact: true })})</td>
-                <td className="py-3 px-3 text-right font-bold text-boulder-700">{formatCurrency(d.line8CurrentPaymentDueCents, { compact: true })}</td>
+                <td className="py-3 px-3 text-right font-medium">{formatCurrency(d.line4CompletedStoredCents)}</td>
+                <td className="py-3 px-3 text-right text-neutral-500">({formatCurrency(d.line5RetainageCents)})</td>
+                <td className="py-3 px-3 text-right font-bold text-boulder-700">{formatCurrency(d.line8CurrentPaymentDueCents)}</td>
                 <td className="py-3 pr-5">
                   <button onClick={() => handleSelectDraw(d.id)} className="inline-flex items-center justify-center h-7 w-7 rounded-md text-neutral-400 hover:text-boulder-600 hover:bg-boulder-50 transition-colors">
                     <ChevronRight className="h-4 w-4" />
@@ -1740,8 +1908,8 @@ function NewDrawModal({ project, draws, divisions, drawLineItems, onClose }: {
                     <tr key={d.id} className="border-t border-neutral-100">
                       <td className="py-2 pl-4 pr-2 text-neutral-400 text-xs">{d.number}</td>
                       <td className="py-2 pr-3 text-xs font-medium text-neutral-900">{d.name}</td>
-                      <td className="py-2 px-3 text-right text-xs text-neutral-500">{formatCurrency(prev, { compact: true })}</td>
-                      <td className="py-2 px-3 text-right text-xs text-neutral-500">{formatCurrency(balance, { compact: true })}</td>
+                      <td className="py-2 px-3 text-right text-xs text-neutral-500">{formatCurrency(prev)}</td>
+                      <td className="py-2 px-3 text-right text-xs text-neutral-500">{formatCurrency(balance)}</td>
                       <td className="py-2 pl-3 pr-4">
                         <input
                           type="number"
@@ -1772,17 +1940,23 @@ function NewDrawModal({ project, draws, divisions, drawLineItems, onClose }: {
 
 // ── Draw Detail ───────────────────────────────────────────────────────────────
 
-function DrawDetailView({ project, draw, drawLineItems, divisions, onBack }: {
-  project: ProjectPageData["project"];
+function DrawDetailView({ data, draw, drawLineItems, onBack }: {
+  data: ProjectPageData;
   draw: ProjectPageData["draws"][0];
   drawLineItems: ProjectPageData["drawLineItems"];
-  divisions: ProjectPageData["divisions"];
   onBack: () => void;
 }) {
+  const { project, divisions, bidLineItems, organizations, changeOrders } = data;
+  const orgMap = new Map(organizations.map((o) => [o.id, o]));
+  const ownerOrg = orgMap.get(project.ownerOrgId);
+  const contractorOrg = orgMap.get(project.contractorOrgId);
+  const architectOrg = orgMap.get(project.architectOrgId);
+  const coApproved = changeOrders.filter((c) => c.status === "approved");
+  const coAdditions = coApproved.filter((c) => c.amountCents > 0).reduce((s, c) => s + c.amountCents, 0);
+  const coDeductions = coApproved.filter((c) => c.amountCents < 0).reduce((s, c) => s + Math.abs(c.amountCents), 0);
+  const [bidFilter, setBidFilter] = React.useState<string>("all");
   const { role } = useRole();
   const [isPending, startTransition] = useTransition();
-  const canSeeCFRPane = permissions.canSeeCFR(role);
-  const [cfrOpen, setCfrOpen] = React.useState(canSeeCFRPane);
 
   function handleStatusChange(action: "submit" | "certify" | "pay") {
     startTransition(async () => {
@@ -1793,7 +1967,7 @@ function DrawDetailView({ project, draw, drawLineItems, divisions, onBack }: {
   }
 
   return (
-    <main className="max-w-[1600px] mx-auto px-6 py-8">
+    <main className="max-w-7xl mx-auto px-6 py-8">
       <div className="flex items-start justify-between gap-6 flex-wrap">
         <div>
           <button onClick={onBack} className="text-xs text-boulder-600 hover:text-boulder-700 font-medium mb-2">← Back to draws</button>
@@ -1802,12 +1976,6 @@ function DrawDetailView({ project, draw, drawLineItems, divisions, onBack }: {
           <p className="mt-1 text-sm text-neutral-500">Period ending {formatDate(draw.periodEndDate)} · <DrawStatusBadge status={draw.status} /></p>
         </div>
         <div className="flex items-center gap-2">
-          {canSeeCFRPane && (
-            <Button variant="outline" size="sm" onClick={() => setCfrOpen(!cfrOpen)} className="hidden lg:inline-flex">
-              {cfrOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
-              {cfrOpen ? "Hide CFR" : "Show CFR"}
-            </Button>
-          )}
           <Button variant="outline" size="sm"><Printer className="h-4 w-4" />Print</Button>
           <Button variant="outline" size="sm"><Download className="h-4 w-4" />Export PDF</Button>
           {permissions.canEditDraw(role) && draw.status === "draft" && (
@@ -1828,171 +1996,380 @@ function DrawDetailView({ project, draw, drawLineItems, divisions, onBack }: {
         </div>
       </div>
 
-      <div className={cn("mt-6 grid gap-6", cfrOpen && canSeeCFRPane ? "lg:grid-cols-[1.5fr_1fr]" : "grid-cols-1")}>
-        <div className="space-y-5">
-          {/* G702 */}
-          <div className="rounded-xl border border-neutral-200 bg-white overflow-hidden">
-            <div className="p-5 border-b border-neutral-100 bg-gradient-to-br from-boulder-50 to-transparent">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-boulder-700">G702 · Application & Certification for Payment</div>
-                  <h2 className="mt-2 font-display text-xl font-bold text-neutral-950">{project.name}</h2>
-                  <p className="text-xs text-neutral-500 mt-0.5">{project.address}</p>
-                </div>
-                <div className="text-right shrink-0">
-                  <div className="text-[10px] uppercase tracking-wider font-semibold text-neutral-500">Application #</div>
-                  <div className="tabular font-display text-3xl font-bold text-boulder-600">{draw.number}</div>
-                </div>
-              </div>
-            </div>
-            <div className="p-5 space-y-2 tabular text-sm">
-              <G702Row n="1" label="Original contract sum" value={draw.line1ContractSumCents} />
-              <G702Row n="2" label="Net change by change orders" value={draw.line2NetCoCents} />
-              <G702Row n="3" label="Contract sum to date (Line 1 ± 2)" value={draw.line3ContractSumToDateCents} bold />
-              <G702Row n="4" label="Total completed & stored to date" value={draw.line4CompletedStoredCents} />
-              <G702Row n="5" label="Retainage" value={draw.line5RetainageCents} muted />
-              <G702Row n="6" label="Total earned less retainage (Line 4 − 5)" value={draw.line6EarnedLessRetainageCents} bold />
-              <G702Row n="7" label="Less previous certificates" value={draw.line7LessPreviousCents} muted />
-              <Separator className="my-3" />
-              <div className="flex items-center justify-between p-3 rounded-lg bg-boulder-50 border border-boulder-200">
-                <div>
-                  <div className="text-[10px] uppercase tracking-wider font-bold text-boulder-700">Line 8 · Current payment due</div>
-                  <div className="text-xs text-boulder-700/70 mt-0.5">Line 6 − Line 7</div>
-                </div>
-                <div className="font-display text-2xl font-bold tabular text-boulder-700">{formatCurrency(draw.line8CurrentPaymentDueCents)}</div>
-              </div>
-              <G702Row n="9" label="Balance to finish, including retainage" value={draw.line9BalanceToFinishCents} muted />
-            </div>
-          </div>
+      <div className="mt-6 grid gap-6 grid-cols-1">
+        <div>
+          <div className="space-y-6">
 
-          {/* G703 */}
-          <div className="rounded-xl border border-neutral-200 bg-white overflow-hidden">
-            <div className="px-5 py-3.5 border-b border-neutral-100 flex items-center justify-between">
-              <div>
-                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-neutral-600">G703 · Continuation sheet</div>
-                <p className="text-xs text-neutral-500 mt-0.5">Work completed per division</p>
+          {/* ── G702 ── */}
+          <details id="g702" className="group">
+            <summary className="cursor-pointer list-none flex items-center gap-2 px-3 py-1.5 rounded-md bg-neutral-100 hover:bg-neutral-200 font-mono text-xs font-semibold uppercase tracking-wider text-neutral-800 select-none [&::-webkit-details-marker]:hidden w-80">
+              <span className="flex-1">G702 — Application & Certification for Payment</span>
+              <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" />
+            </summary>
+            <div style={{ fontFamily: '"Times New Roman", Times, serif' }} className="aia-form mt-2 rounded-xl border-2 border-neutral-900 bg-white overflow-hidden text-[13px] text-neutral-900 w-full">
+              <div className="border-b-2 border-neutral-900 px-5 py-3 flex items-baseline justify-between">
+                <div className="font-bold text-[15px] uppercase tracking-wide">Application and Certification for Payment</div>
+                <div className="italic text-[12px] text-neutral-600">AIA Document G702</div>
               </div>
-              <span className="text-xs text-neutral-500 tabular">{drawLineItems.length} divisions</span>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs tabular table-fixed">
-                <colgroup>
-                  <col className="w-10" />
-                  <col className="w-[18%]" />
-                  <col className="w-[9%]" />
-                  <col className="w-[11%]" />
-                  <col className="w-[9%]" />
-                  <col className="w-[9%]" />
-                  <col className="w-[11%]" />
-                  <col className="w-[7%]" />
-                  <col className="w-[9%]" />
-                  <col className="w-[9%]" />
-                </colgroup>
-                <thead className="bg-neutral-50 text-[9px] font-semibold text-neutral-700 uppercase tracking-wider">
-                  {/* Row 1: letter codes + descriptions inline. D·E grouped. */}
-                  <tr className="border-b border-neutral-200">
-                    <th className="text-center py-1.5 px-2 border-r border-neutral-200" rowSpan={2}>A</th>
-                    <th className="text-left py-1.5 px-2 border-r border-neutral-200" rowSpan={2}>B<br/><span className="font-normal normal-case text-neutral-400 text-[8px]">Description of Work</span></th>
-                    <th className="text-right py-1.5 px-2 border-r border-neutral-200" rowSpan={2}>C<br/><span className="font-normal normal-case text-neutral-400 text-[8px]">Scheduled Value</span></th>
-                    <th className="text-center py-1 px-2 border-r border-neutral-200 bg-neutral-100" colSpan={2}>D · E — Work Completed</th>
-                    <th className="text-right py-1.5 px-2 border-r border-neutral-200" rowSpan={2}>F<br/><span className="font-normal normal-case text-neutral-400 text-[8px]">Materials Presently Stored</span></th>
-                    <th className="text-right py-1.5 px-2 border-r border-neutral-200" rowSpan={2}>G<br/><span className="font-normal normal-case text-neutral-400 text-[8px]">Total Completed &amp; Stored (D+E+F)</span></th>
-                    <th className="text-center py-1.5 px-2 border-r border-neutral-200" rowSpan={2}>G÷C<br/><span className="font-normal normal-case text-neutral-400 text-[8px]">%</span></th>
-                    <th className="text-right py-1.5 px-2 border-r border-neutral-200" rowSpan={2}>H<br/><span className="font-normal normal-case text-neutral-400 text-[8px]">Balance to Finish (C−G)</span></th>
-                    <th className="text-right py-1.5 px-2" rowSpan={2}>I<br/><span className="font-normal normal-case text-neutral-400 text-[8px]">Retainage (if variable)</span></th>
-                  </tr>
-                  <tr className="border-b border-neutral-200 bg-neutral-100">
-                    <th className="text-right py-1 px-2 border-r border-neutral-200 font-normal normal-case text-neutral-500">D — From Previous Application</th>
-                    <th className="text-right py-1 px-2 border-r border-neutral-200 font-normal normal-case text-neutral-500">E — This Period</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {drawLineItems.map((l) => {
-                    const d = divisions.find((dd) => dd.id === l.divisionId);
-                    return (
-                      <tr key={l.id} className="border-t border-neutral-100 hover:bg-neutral-50/60">
-                        <td className="py-2 pl-4 pr-2 text-neutral-400 font-medium">{d?.number}</td>
-                        <td className="py-2 pr-2 font-medium text-neutral-900">{d?.name}</td>
-                        <td className="py-2 px-2 text-right">{formatCurrency(l.colCScheduledValueCents, { compact: true })}</td>
-                        <td className="py-2 px-2 text-right text-neutral-500">{formatCurrency(l.colDFromPreviousCents, { compact: true })}</td>
-                        <td className={cn("py-2 px-2 text-right", l.colEThisPeriodCents > 0 ? "text-boulder-700 font-semibold" : "text-neutral-400")}>
-                          {l.colEThisPeriodCents > 0 ? formatCurrency(l.colEThisPeriodCents, { compact: true }) : "—"}
-                        </td>
-                        <td className="py-2 px-2 text-right text-neutral-400">{l.colFMaterialsStoredCents > 0 ? formatCurrency(l.colFMaterialsStoredCents, { compact: true }) : "—"}</td>
-                        <td className="py-2 px-2 text-right font-semibold">{formatCurrency(l.colGCompletedStoredCents, { compact: true })}</td>
-                        <td className="py-2 px-2 text-right">
-                          <span className={cn("inline-block px-1.5 py-0.5 rounded text-[10px] font-bold", l.colGPercentBps === 10000 ? "bg-emerald-100 text-emerald-700" : "bg-neutral-100 text-neutral-700")}>
-                            {formatPercent(l.colGPercentBps, 0)}
-                          </span>
-                        </td>
-                        <td className="py-2 px-2 text-right text-neutral-500">{l.colHBalanceCents > 0 ? formatCurrency(l.colHBalanceCents, { compact: true }) : "—"}</td>
-                        <td className="py-2 pl-2 pr-4 text-right text-neutral-500">{l.colIRetainageCents > 0 ? formatCurrency(l.colIRetainageCents, { compact: true }) : "—"}</td>
+              <div className="grid grid-cols-12 border-b-2 border-neutral-900">
+                <div className="col-span-4 p-3 border-r border-neutral-300">
+                  <div className="font-bold text-[11px] uppercase">To Owner:</div>
+                  <div className="mt-1">{ownerOrg?.name || "—"}</div>
+                  {ownerOrg?.address && <div className="text-[11px] text-neutral-700">{ownerOrg.address}</div>}
+                </div>
+                <div className="col-span-3 p-3 border-r border-neutral-300">
+                  <div className="font-bold text-[11px] uppercase">Project:</div>
+                  <div className="mt-1">{project.name}</div>
+                  {project.address && <div className="text-[11px] text-neutral-700">{project.address}</div>}
+                </div>
+                <div className="col-span-3 p-3 border-r border-neutral-300 space-y-1">
+                  <div className="flex justify-between"><span className="font-bold text-[11px] uppercase">Application No:</span><span>{draw.number}</span></div>
+                  <div className="flex justify-between"><span className="font-bold text-[11px] uppercase">Period To:</span><span>{new Date(draw.periodEndDate).toLocaleDateString("en-US")}</span></div>
+                  <div className="flex justify-between"><span className="font-bold text-[11px] uppercase">Contract Date:</span><span>{new Date(project.contractDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</span></div>
+                </div>
+                <div className="col-span-2 p-3">
+                  <div className="font-bold text-[11px] uppercase">Distribution to:</div>
+                  <div className="mt-1 space-y-0.5 text-[11px]">
+                    <div><span className="inline-block w-4">X</span>Owner</div>
+                    <div><span className="inline-block w-4">&nbsp;</span>Architect</div>
+                    <div><span className="inline-block w-4">&nbsp;</span>Contractor</div>
+                  </div>
+                </div>
+                <div className="col-span-6 p-3 border-t border-neutral-300 border-r">
+                  <div className="font-bold text-[11px] uppercase">From Contractor:</div>
+                  <div className="mt-1">{contractorOrg?.name || "—"}</div>
+                  {contractorOrg?.address && <div className="text-[11px] text-neutral-700">{contractorOrg.address}</div>}
+                </div>
+                <div className="col-span-6 p-3 border-t border-neutral-300">
+                  <div className="font-bold text-[11px] uppercase">Via Architect:</div>
+                  <div className="mt-1">{architectOrg?.name || "—"}</div>
+                  {architectOrg?.address && <div className="text-[11px] text-neutral-700">{architectOrg.address}</div>}
+                </div>
+                <div className="col-span-12 p-3 border-t border-neutral-300">
+                  <span className="font-bold text-[11px] uppercase">Contract For:</span>
+                  <span className="ml-2">{project.projectNumber || "—"}</span>
+                </div>
+              </div>
+              <div className="grid grid-cols-12">
+                <div className="col-span-7 border-r-2 border-neutral-900 p-4">
+                  <div className="font-bold uppercase text-[14px] mb-1">Contractor&apos;s Application for Payment</div>
+                  <div className="text-[11px] text-neutral-700 mb-3">
+                    Application is made for payment, as shown below, in connection with the Contract.<br />
+                    Continuation Sheet, AIA Document G703, is attached.
+                  </div>
+                  <table className="w-full text-[12px]">
+                    <tbody>
+                      {[
+                        { n: "1.", label: "Original Contract Sum", value: draw.line1ContractSumCents, underline: true },
+                        { n: "2.", label: "Net change by Change Orders", value: draw.line2NetCoCents, underline: true },
+                        { n: "3.", label: "Contract Sum to Date (Line 1 ± 2)", value: draw.line3ContractSumToDateCents, underline: true, bold: true },
+                        { n: "4.", label: "Total Completed & Stored to Date (Column G on G703)", value: draw.line4CompletedStoredCents, underline: true, bold: true, twoLine: true },
+                        { n: "5.", label: "Retainage:", header: true },
+                        { n: "", label: "a. ___% of Completed Work", value: null, sub: true, amount: "$" },
+                        { n: "", label: "(Column D + E on G703)", value: null, sub: true, caption: true },
+                        { n: "", label: "b. ___% of Stored Material", value: null, sub: true, amount: "$" },
+                        { n: "", label: "(Column F on G703)", value: null, sub: true, caption: true },
+                        { n: "", label: "Total Retainage (Lines 5a + 5b or", value: null, sub: true },
+                        { n: "", label: "Total in Column I of G703)", value: draw.line5RetainageCents, sub: true, underline: true, amount: "$" },
+                        { n: "6.", label: "Total Earned Less Retainage (Line 4 Less Line 5 Total)", value: draw.line6EarnedLessRetainageCents, underline: true, amount: "$" },
+                        { n: "7.", label: "Less Previous Certificates for Payment (Line 6 from prior Certificate)", value: draw.line7LessPreviousCents, underline: true, amount: "$", twoLine: true },
+                        { n: "8.", label: "Current Payment Due", value: draw.line8CurrentPaymentDueCents, underline: true, bold: true, highlight: true, amount: "$" },
+                        { n: "9.", label: "Balance to Finish, Including Retainage (Line 3 less Line 6)", value: draw.line9BalanceToFinishCents, underline: true, amount: "$", twoLine: true },
+                      ].map((row, i) => (
+                        <tr key={i} className={cn(row.highlight && "bg-yellow-50")}>
+                          <td className={cn("align-top py-0.5 pr-2 w-8", row.bold && "font-bold", row.caption && "text-[10px] text-neutral-500")}>{row.n}</td>
+                          <td className={cn("align-top py-0.5 pr-2", row.bold && "font-bold", row.sub && "pl-4", row.caption && "text-[10px] text-neutral-500", row.header && "font-bold")}>{row.label}</td>
+                          <td className={cn("align-top py-0.5 text-right tabular-nums whitespace-nowrap", row.bold && "font-bold", row.underline && row.value != null && "border-b border-neutral-400")}>
+                            {row.value != null
+                              ? formatCurrency(row.value)
+                              : row.amount ? <span className="text-neutral-500">{row.amount}</span> : null}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <table className="w-full text-[11px] mt-5 border border-neutral-900">
+                    <thead>
+                      <tr className="bg-neutral-100 border-b border-neutral-900">
+                        <th className="text-left px-2 py-1 border-r border-neutral-900 font-bold uppercase">Change Order Summary</th>
+                        <th className="text-right px-2 py-1 border-r border-neutral-900 font-bold uppercase">Additions</th>
+                        <th className="text-right px-2 py-1 font-bold uppercase">Deductions</th>
                       </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t-2 border-neutral-300 bg-neutral-50 font-bold text-[11px]">
-                    <td colSpan={2} className="py-3 pl-4 text-neutral-950">GRAND TOTAL</td>
-                    <td className="py-3 px-2 text-right">{formatCurrency(drawLineItems.reduce((s, l) => s + l.colCScheduledValueCents, 0), { compact: true })}</td>
-                    <td className="py-3 px-2 text-right">{formatCurrency(drawLineItems.reduce((s, l) => s + l.colDFromPreviousCents, 0), { compact: true })}</td>
-                    <td className="py-3 px-2 text-right text-boulder-700">{formatCurrency(drawLineItems.reduce((s, l) => s + l.colEThisPeriodCents, 0), { compact: true })}</td>
-                    <td className="py-3 px-2 text-right">{formatCurrency(drawLineItems.reduce((s, l) => s + l.colFMaterialsStoredCents, 0), { compact: true })}</td>
-                    <td className="py-3 px-2 text-right">{formatCurrency(drawLineItems.reduce((s, l) => s + l.colGCompletedStoredCents, 0), { compact: true })}</td>
-                    <td className="py-3 px-2"></td>
-                    <td className="py-3 px-2 text-right">{formatCurrency(drawLineItems.reduce((s, l) => s + l.colHBalanceCents, 0), { compact: true })}</td>
-                    <td className="py-3 pl-2 pr-4 text-right">{formatCurrency(drawLineItems.reduce((s, l) => s + l.colIRetainageCents, 0), { compact: true })}</td>
-                  </tr>
-                </tfoot>
-              </table>
+                    </thead>
+                    <tbody>
+                      <tr className="border-b border-neutral-300">
+                        <td className="px-2 py-1 border-r border-neutral-300">Total changes approved<br />in previous months by Owner</td>
+                        <td className="px-2 py-1 text-right border-r border-neutral-300 tabular-nums">{formatCurrency(coAdditions)}</td>
+                        <td className="px-2 py-1 text-right tabular-nums">{formatCurrency(coDeductions)}</td>
+                      </tr>
+                      <tr className="border-b border-neutral-300">
+                        <td className="px-2 py-1 border-r border-neutral-300">Total approved this Month</td>
+                        <td className="px-2 py-1 text-right border-r border-neutral-300 tabular-nums">$0.00</td>
+                        <td className="px-2 py-1 text-right tabular-nums">$0.00</td>
+                      </tr>
+                      <tr className="border-b-2 border-neutral-900 font-bold">
+                        <td className="px-2 py-1 border-r border-neutral-300">Totals</td>
+                        <td className="px-2 py-1 text-right border-r border-neutral-300 tabular-nums">{formatCurrency(coAdditions)}</td>
+                        <td className="px-2 py-1 text-right tabular-nums">{formatCurrency(coDeductions)}</td>
+                      </tr>
+                      <tr>
+                        <td className="px-2 py-1 border-r border-neutral-300 font-semibold">Net Changes by Change Order</td>
+                        <td colSpan={2} className="px-2 py-1 text-right tabular-nums font-bold">{formatCurrency(coAdditions - coDeductions)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div className="col-span-5 p-4">
+                  <div className="text-[11px] text-neutral-700 leading-snug">
+                    The undersigned Contractor certifies that to the best of the Contractor&apos;s knowledge,
+                    information and belief the Work covered by this Application for Payment has been
+                    completed in accordance with the Contract Documents, that all amounts have been paid by
+                    the Contractor for Work for which previous Certificates for Payment were issued and
+                    payments received from the Owner, and that current payment shown herein is now due.
+                  </div>
+                  <div className="mt-6 text-[11px] space-y-4">
+                    <div>Contractor:</div>
+                    <div className="flex gap-4"><span>By: <span className="inline-block border-b border-neutral-400 w-40 ml-1">&nbsp;</span></span><span>Date: <span className="inline-block border-b border-neutral-400 w-32 ml-1">&nbsp;</span></span></div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>State of:</div>
+                      <div>County of:</div>
+                    </div>
+                    <div>Subscribed and sworn to before me this <span className="inline-block border-b border-neutral-400 w-16">&nbsp;</span> day of <span className="inline-block border-b border-neutral-400 w-24">&nbsp;</span></div>
+                    <div>Notary Public: <span className="inline-block border-b border-neutral-400 w-40">&nbsp;</span></div>
+                    <div>My Commission expires: <span className="inline-block border-b border-neutral-400 w-32">&nbsp;</span></div>
+                  </div>
+                  <div className="mt-6 pt-4 border-t-2 border-neutral-900">
+                    <div className="font-bold uppercase text-[14px] mb-1">Architect&apos;s Certificate for Payment</div>
+                    <div className="text-[11px] text-neutral-700 leading-snug">
+                      In accordance with the Contract Documents, based on on-site observations and the data
+                      comprising the application, the Architect certifies to the Owner that to the best of the
+                      Architect&apos;s knowledge, information and belief the Work has progressed as indicated,
+                      the quality of the Work is in accordance with the Contract Documents, and the Contractor
+                      is entitled to payment of the AMOUNT CERTIFIED.
+                    </div>
+                    <div className="mt-3 flex items-center gap-2">
+                      <span className="font-bold text-[11px] uppercase">Amount Certified</span>
+                      <span className="flex-1 border-b border-neutral-400 text-right pr-2 tabular-nums font-bold">$ {formatCurrency(draw.line8CurrentPaymentDueCents ?? 0).replace("$", "")}</span>
+                    </div>
+                    <div className="mt-3 text-[10px] italic text-neutral-600 leading-snug">
+                      (Attach explanation if amount certified differs from the amount applied. Initial all figures on this
+                      Application and the Continuation Sheet that are changed to conform with the amount certified.)
+                    </div>
+                    <div className="mt-3 text-[11px]">Architect:</div>
+                    <div className="mt-2 flex gap-4 text-[11px]"><span>By: <span className="inline-block border-b border-neutral-400 w-40 ml-1">&nbsp;</span></span><span>Date: <span className="inline-block border-b border-neutral-400 w-32 ml-1">&nbsp;</span></span></div>
+                    <div className="mt-3 text-[10px] text-neutral-600 leading-snug">
+                      This Certificate is not negotiable. The AMOUNT CERTIFIED is payable only to the
+                      Contractor named herein. Issuance, payment and acceptance of payment are without
+                      prejudice to any rights of the Owner or Contractor under this Contract.
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="border-t-2 border-neutral-900 px-3 py-2 text-[9px] text-neutral-600 bg-neutral-50">
+                AIA DOCUMENT G702 · APPLICATION AND CERTIFICATION FOR PAYMENT · 1992 EDITION · AIA® · © 1992 · THE AMERICAN INSTITUTE OF ARCHITECTS, 1735 NEW YORK AVE, N.W., WASHINGTON, DC 20006-5292
+              </div>
             </div>
+          </details>
+
+          {/* ── G703 ── */}
+          <details id="g703" className="group">
+            <summary className="cursor-pointer list-none flex items-center gap-2 px-3 py-1.5 rounded-md bg-neutral-100 hover:bg-neutral-200 font-mono text-xs font-semibold uppercase tracking-wider text-neutral-800 select-none [&::-webkit-details-marker]:hidden w-80">
+              <span className="flex-1">G703 — Continuation Sheet</span>
+              <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" />
+            </summary>
+            <div className="mt-2" style={{ marginLeft: "-6rem", marginRight: "-6rem" }}>
+            <div style={{ fontFamily: '"Times New Roman", Times, serif' }} className="aia-form rounded-xl border-2 border-neutral-900 bg-white overflow-hidden text-[13px] text-neutral-900 w-full">
+              <div className="border-b-2 border-neutral-900 px-4 py-2 flex items-baseline justify-between">
+                <div className="font-bold text-[14px] uppercase tracking-wide">Continuation Sheet</div>
+                <div className="italic text-[11px] text-neutral-600">AIA Document G703</div>
+              </div>
+              <div className="grid grid-cols-12 border-b-2 border-neutral-900 text-[11px]">
+                <div className="col-span-7 p-3 border-r border-neutral-300 leading-snug">
+                  <div>AIA Document G702, APPLICATION AND CERTIFICATION FOR PAYMENT, containing</div>
+                  <div>Contractor&apos;s signed certification is attached.</div>
+                  <div>In tabulations below, amounts are stated to the nearest dollar.</div>
+                  <div>Use Column I on Contracts where variable retainage for line items may apply.</div>
+                </div>
+                <div className="col-span-5 p-3 space-y-1">
+                  <div className="flex justify-between"><span className="font-bold uppercase">Application No:</span><span>{draw.number}</span></div>
+                  <div className="flex justify-between"><span className="font-bold uppercase">Application Date:</span><span>{new Date(draw.periodEndDate).toLocaleDateString("en-US")}</span></div>
+                  <div className="flex justify-between"><span className="font-bold uppercase">Period To:</span><span>{new Date(draw.periodEndDate).toLocaleDateString("en-US")}</span></div>
+                  <div className="flex justify-between"><span className="font-bold uppercase">Project No:</span><span>{project.projectNumber || "—"}</span></div>
+                </div>
+              </div>
+              <div>
+                <table className="w-full text-[11px] tabular-nums border-collapse">
+                  <thead>
+                    <tr className="bg-neutral-100 border-b border-neutral-900">
+                      <th colSpan={3} className="border-r border-neutral-900 py-1 font-bold"></th>
+                      <th colSpan={2} className="border-r border-neutral-900 py-1 font-bold uppercase tracking-wide">Work Completed</th>
+                      <th colSpan={5} className="py-1"></th>
+                    </tr>
+                    <tr className="bg-neutral-50 border-b-2 border-neutral-900 align-top text-center text-[10px] uppercase">
+                      <th className="border-r border-neutral-900 px-1 py-1"><div className="font-bold text-[12px]">A</div><div className="font-normal mt-0.5">Item No.</div><div className="font-normal text-neutral-500">&nbsp;</div></th>
+                      <th className="border-r border-neutral-900 px-2 py-1"><div className="font-bold text-[12px]">B</div><div className="font-normal mt-0.5">Description of Work</div><div className="font-normal text-neutral-500">&nbsp;</div></th>
+                      <th className="border-r border-neutral-900 px-1 py-1"><div className="font-bold text-[12px]">C</div><div className="font-normal mt-0.5">Scheduled Value</div><div className="font-normal text-neutral-500">&nbsp;</div></th>
+                      <th className="border-r border-neutral-300 px-1 py-1"><div className="font-bold text-[12px]">D</div><div className="font-normal mt-0.5">From Previous</div><div className="font-normal text-neutral-500">(D + E)</div></th>
+                      <th className="border-r border-neutral-900 px-1 py-1"><div className="font-bold text-[12px]">E</div><div className="font-normal mt-0.5">This Period</div><div className="font-normal text-neutral-500">&nbsp;</div></th>
+                      <th className="border-r border-neutral-900 px-1 py-1"><div className="font-bold text-[12px]">F</div><div className="font-normal mt-0.5">Materials Stored</div><div className="font-normal text-neutral-500">(Not in D or E)</div></th>
+                      <th className="border-r border-neutral-900 px-1 py-1 w-32"><div className="font-bold text-[12px]">G</div><div className="font-normal mt-0.5">Total Completed</div><div className="font-normal text-neutral-500">(D + E + F)</div></th>
+                      <th className="border-r border-neutral-900 px-1 py-1 w-32"><div className="font-bold text-[12px]">%</div><div className="font-normal mt-0.5">Percentage</div><div className="font-normal text-neutral-500 mt-8">(G ÷ C)</div></th>
+                      <th className="border-r border-neutral-900 px-1 py-1 w-32"><div className="font-bold text-[12px]">H</div><div className="font-normal mt-0.5">Balance to Finish</div><div className="font-normal text-neutral-500">(C − G)</div></th>
+                      <th className="px-1 py-1 w-32"><div className="font-bold text-[12px]">I</div><div className="font-normal mt-0.5">Retainage</div><div className="font-normal text-neutral-500 mt-8">(If Variable)</div></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {divisions.map((div) => {
+                      const li = drawLineItems.find((l) => l.divisionId === div.id);
+                      const colC = li?.colCScheduledValueCents ?? div.scheduledValueCents;
+                      const colD = li?.colDFromPreviousCents ?? 0;
+                      const colE = li?.colEThisPeriodCents ?? 0;
+                      const colF = li?.colFMaterialsStoredCents ?? 0;
+                      const colG = li?.colGCompletedStoredCents ?? (colD + colE + colF);
+                      const colGPct = colC > 0 ? (colG / colC) * 100 : 0;
+                      const colH = li?.colHBalanceCents ?? Math.max(0, colC - colG);
+                      const colI = li?.colIRetainageCents ?? 0;
+                      return (
+                        <tr key={div.id} className="border-b border-neutral-200">
+                          <td className="border-r border-neutral-300 px-1 py-1 text-center">{div.number}</td>
+                          <td className="border-r border-neutral-300 px-2 py-1 font-medium uppercase">{div.name}</td>
+                          <td className="border-r border-neutral-300 px-1 py-1 text-right">{formatCurrency(colC)}</td>
+                          <td className="border-r border-neutral-300 px-1 py-1 text-right">{colD > 0 ? formatCurrency(colD) : "-"}</td>
+                          <td className="border-r border-neutral-300 px-1 py-1 text-right">{colE > 0 ? formatCurrency(colE) : "-"}</td>
+                          <td className="border-r border-neutral-300 px-1 py-1 text-right">{colF > 0 ? formatCurrency(colF) : "-"}</td>
+                          <td className="border-r border-neutral-300 px-1 py-1 text-right font-semibold">{colG > 0 ? formatCurrency(colG) : "-"}</td>
+                          <td className="border-r border-neutral-300 px-1 py-1 text-right">{colGPct.toFixed(1)}%</td>
+                          <td className="border-r border-neutral-300 px-1 py-1 text-right">{colH !== 0 ? formatCurrency(colH) : "-"}</td>
+                          <td className="px-1 py-1 text-right">{colI > 0 ? formatCurrency(colI) : "-"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 border-neutral-900 bg-neutral-50 font-bold">
+                      <td className="border-r border-neutral-300 px-1 py-2"></td>
+                      <td className="border-r border-neutral-300 px-2 py-2 uppercase">Grand Total</td>
+                      {(() => {
+                        const totC = divisions.reduce((s, div) => { const li = drawLineItems.find((l) => l.divisionId === div.id); return s + (li?.colCScheduledValueCents ?? div.scheduledValueCents); }, 0);
+                        const totD = drawLineItems.reduce((s, l) => s + l.colDFromPreviousCents, 0);
+                        const totE = drawLineItems.reduce((s, l) => s + l.colEThisPeriodCents, 0);
+                        const totF = drawLineItems.reduce((s, l) => s + l.colFMaterialsStoredCents, 0);
+                        const totG = drawLineItems.reduce((s, l) => s + l.colGCompletedStoredCents, 0);
+                        const totGPct = totC > 0 ? (totG / totC) * 100 : 0;
+                        const totH = drawLineItems.reduce((s, l) => s + l.colHBalanceCents, 0);
+                        const totI = drawLineItems.reduce((s, l) => s + l.colIRetainageCents, 0);
+                        return (<>
+                          <td className="border-r border-neutral-300 px-1 py-2 text-right">{formatCurrency(totC)}</td>
+                          <td className="border-r border-neutral-300 px-1 py-2 text-right">{formatCurrency(totD)}</td>
+                          <td className="border-r border-neutral-300 px-1 py-2 text-right">{formatCurrency(totE)}</td>
+                          <td className="border-r border-neutral-300 px-1 py-2 text-right">{totF > 0 ? formatCurrency(totF) : "-"}</td>
+                          <td className="border-r border-neutral-300 px-1 py-2 text-right">{formatCurrency(totG)}</td>
+                          <td className="border-r border-neutral-300 px-1 py-2 text-right">{totGPct.toFixed(1)}%</td>
+                          <td className="border-r border-neutral-300 px-1 py-2 text-right">{formatCurrency(totH)}</td>
+                          <td className="px-1 py-2 text-right">{formatCurrency(totI)}</td>
+                        </>);
+                      })()}
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+              <div className="border-t-2 border-neutral-900 px-3 py-2 text-[9px] text-neutral-600 bg-neutral-50 text-center italic">
+                Users may obtain validation of this document by requesting of the license a completed AIA Document D401 - Certification of Document&apos;s Authenticity
+              </div>
+            </div>
+            </div>
+          </details>
+
+          {/* ── Bid ── */}
+          <details id="bid" className="group">
+            <summary className="cursor-pointer list-none flex items-center gap-2 px-3 py-1.5 rounded-md bg-neutral-100 hover:bg-neutral-200 font-mono text-xs font-semibold uppercase tracking-wider text-neutral-800 select-none [&::-webkit-details-marker]:hidden w-80">
+              <span className="flex-1">Bid</span>
+              <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" />
+            </summary>
+            <div className="mt-2">
+            <div className="space-y-5">
+              <div className="flex items-center gap-3">
+                <label className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">Division</label>
+                <select
+                  value={bidFilter}
+                  onChange={(e) => setBidFilter(e.target.value)}
+                  className="text-sm border border-neutral-300 rounded-lg px-3 py-1.5 bg-white text-neutral-900 focus:outline-none focus:ring-2 focus:ring-boulder-400"
+                >
+                  <option value="all">All divisions</option>
+                  {divisions.map((d) => (
+                    <option key={d.id} value={d.id}>{d.number}. {d.name}</option>
+                  ))}
+                </select>
+              </div>
+              {(bidFilter === "all" ? divisions : divisions.filter((d) => d.id === bidFilter)).map((div) => {
+                const items = bidLineItems.filter((b) => b.divisionId === div.id);
+                if (!items.length) return null;
+                const totalBudget = items.reduce((s, b) => s + b.budgetCents, 0);
+                const totalActual = items.reduce((s, b) => s + b.actualCents, 0);
+                const totalRemaining = totalBudget - totalActual;
+                return (
+                  <div key={div.id} className="rounded-xl border border-neutral-200 bg-white overflow-hidden">
+                    <div className="px-5 py-3 bg-neutral-50/60 border-b border-neutral-100 flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-3">
+                        <span className="h-7 w-7 rounded-md bg-white border border-neutral-200 text-neutral-700 text-xs font-bold flex items-center justify-center tabular">{div.number}</span>
+                        <h3 className="font-display font-bold text-base text-neutral-950">{div.name}</h3>
+                      </div>
+                      <div className="flex items-center gap-4 text-xs tabular">
+                        <span className="text-neutral-500">Budget: <span className="font-semibold text-neutral-800">{formatCurrency(totalBudget)}</span></span>
+                        <span className="text-neutral-500">Spent: <span className="font-semibold text-neutral-800">{formatCurrency(totalActual)}</span></span>
+                        <span className={cn("font-semibold", totalRemaining < 0 ? "text-red-600" : "text-emerald-700")}>
+                          {totalRemaining < 0 ? `(${formatCurrency(-totalRemaining)})` : formatCurrency(totalRemaining)} remaining
+                        </span>
+                      </div>
+                    </div>
+                    <table className="bid-table w-full text-sm tabular">
+                      <thead className="font-mono text-[10px] uppercase tracking-wider font-semibold text-neutral-500 bg-neutral-50/40">
+                        <tr>
+                          <th className="text-left py-2 pl-5 pr-3">Description</th>
+                          <th className="text-right py-2 px-3">Budget</th>
+                          <th className="text-right py-2 px-3">Total Spend</th>
+                          <th className="text-right py-2 px-3">Remaining</th>
+                          <th className="text-right py-2 pl-3 pr-5">%</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {items.map((b) => {
+                          const pct = b.budgetCents > 0 ? (b.actualCents / b.budgetCents) * 100 : 0;
+                          const rem = b.budgetCents - b.actualCents;
+                          const over = rem < 0;
+                          return (
+                            <tr key={b.id} className="border-t border-neutral-100 hover:bg-neutral-50/60">
+                              <td className="py-2.5 pl-5 pr-3">
+                                <div className="flex items-center gap-2">
+                                  {over && pct > 150 && <AlertTriangle className="h-3 w-3 text-red-500 shrink-0" />}
+                                  {over && pct <= 150 && <TrendingUp className="h-3 w-3 text-amber-500 shrink-0" />}
+                                  <span className={cn("text-neutral-900", over && pct > 150 && "font-semibold")}>{b.name}</span>
+                                </div>
+                              </td>
+                              <td className="py-2.5 px-3 text-right text-neutral-500">{formatCurrency(b.budgetCents)}</td>
+                              <td className="py-2.5 px-3 text-right font-medium">{formatCurrency(b.actualCents)}</td>
+                              <td className={cn("py-2.5 px-3 text-right font-semibold", over ? "text-red-600" : "text-emerald-700")}>
+                                {over ? `(${formatCurrency(-rem)})` : formatCurrency(rem)}
+                              </td>
+                              <td className="py-2.5 pl-3 pr-5 text-right">
+                                <Badge variant={pct > 150 ? "destructive" : pct > 105 ? "warning" : pct > 50 ? "default" : "secondary"} className="tabular">
+                                  {pct.toFixed(0)}%
+                                </Badge>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })}
+            </div>
+            </div>
+          </details>
           </div>
         </div>
 
-        {/* CFR pane */}
-        <AnimatePresence>
-          {cfrOpen && canSeeCFRPane && (
-            <motion.aside initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.2 }} className="space-y-5">
-              <div className="rounded-xl border-2 border-boulder-200 bg-white overflow-hidden">
-                <div className="px-4 py-3 bg-boulder-50 border-b border-boulder-200 flex items-center gap-2">
-                  <div className="h-1.5 w-1.5 rounded-full bg-boulder-500 animate-pulse" />
-                  <div className="text-[10px] uppercase tracking-[0.18em] font-bold text-boulder-700">CFR context</div>
-                  <span className="text-[10px] text-boulder-700/60 ml-auto">Contractor-only</span>
-                </div>
-                <div className="divide-y divide-neutral-100">
-                  {divisions.map((d) => {
-                    const line = drawLineItems.find((l) => l.divisionId === d.id);
-                    const pctOfBudget = d.scheduledValueCents > 0 ? (d.grossSpendCents / d.scheduledValueCents) * 100 : 0;
-                    const over = d.grossSpendCents > d.scheduledValueCents;
-                    return (
-                      <div key={d.id} className="p-3 hover:bg-neutral-50/50">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="text-[10px] font-bold text-neutral-400 tabular w-5 shrink-0">{d.number}</span>
-                            <span className="text-xs font-medium text-neutral-900 truncate">{d.name}</span>
-                          </div>
-                          <span className={cn("text-[11px] font-bold tabular shrink-0", over ? "text-red-600" : "text-neutral-600")}>{pctOfBudget.toFixed(0)}%</span>
-                        </div>
-                        <div className="mt-1.5 h-1 rounded-full bg-neutral-100 overflow-hidden">
-                          <div className={cn("h-full", over ? "bg-red-500" : "bg-boulder-500")} style={{ width: `${Math.min(100, pctOfBudget)}%` }} />
-                        </div>
-                        {line && line.colEThisPeriodCents > 0 && (
-                          <div className="mt-1 text-[10px] text-boulder-700 font-semibold tabular">+{formatCurrency(line.colEThisPeriodCents, { compact: true })} this draw</div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </motion.aside>
-          )}
-          {!canSeeCFRPane && (
-            <motion.aside initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="rounded-xl border border-neutral-200 bg-neutral-50 p-6 flex flex-col items-center justify-center text-center">
-              <Lock className="h-5 w-5 text-neutral-400" />
-              <p className="mt-2 text-xs text-neutral-500 max-w-[240px]">CFR context visible only to contractor.</p>
-            </motion.aside>
-          )}
-        </AnimatePresence>
       </div>
     </main>
   );

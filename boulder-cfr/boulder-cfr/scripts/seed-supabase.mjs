@@ -158,28 +158,40 @@ async function main() {
 
   console.log("Bid line items…");
   const bidItems = loadExtracted("parsed_bid.json");
-  await chunkInsert("bid_line_items", bidItems.map((b, idx) => ({
+  const bidItemRows = bidItems.map((b, idx) => ({
     id: `bli-${b.divNum}-${idx + 1}`,
     division_id: `div-${PROJECT_ID}-${b.divNum}`,
     name: b.name,
     coding: b.coding || null,
     budget_cents: b.budgetCents,
     sort_order: b.sortOrder,
-  })));
-  console.log(`  → ${bidItems.length} bid items`);
+  }));
+  await chunkInsert("bid_line_items", bidItemRows);
+  console.log(`  → ${bidItemRows.length} bid items`);
+
+  // Map (divNum, lowercase name) → bli id so transactions can reference by name
+  const bliByNameDiv = new Map();
+  for (const b of bidItemRows) {
+    const divNum = Number(b.division_id.split("-").pop());
+    bliByNameDiv.set(`${divNum}::${(b.name || "").trim().toLowerCase()}`, b.id);
+  }
 
   console.log("Transactions…");
   const debits = loadExtracted("parsed_debits.json");
   // Sequential unique codes per division: RIW-CFR-{div:02}-{seq:03}
   const seqByDiv = {};
+  let matchedBli = 0;
   const txRows = debits.map((d, idx) => {
     const divNum = d.divNum;
     seqByDiv[divNum] = (seqByDiv[divNum] ?? 0) + 1;
     const uniqueCode = `RIW-CFR-${String(divNum).padStart(2, "0")}-${String(seqByDiv[divNum]).padStart(3, "0")}`;
+    const bliId = d.bidItem ? bliByNameDiv.get(`${divNum}::${d.bidItem.trim().toLowerCase()}`) : null;
+    if (bliId) matchedBli++;
     return {
       id: `tx-${idx + 1}`,
       project_id: PROJECT_ID,
       division_id: `div-${PROJECT_ID}-${d.divNum}`,
+      bid_line_item_id: bliId || null,
       date: d.date,
       amount_cents: d.grossCents,
       retainage_cents: Math.abs(d.retainageCents),
@@ -197,8 +209,10 @@ async function main() {
       g703: d.g703 || null,
       unique_code: uniqueCode,
       payment_type: d.type || null,
+      received_k1: d.receivedK1 || null,
     };
   });
+  console.log(`  → matched ${matchedBli}/${debits.length} transactions to bid line items by name`);
   await chunkInsert("transactions", txRows);
   console.log(`  → ${txRows.length} transactions`);
 

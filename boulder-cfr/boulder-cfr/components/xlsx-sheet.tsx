@@ -50,15 +50,45 @@ type Props = {
   autoLayout?: boolean;
   /** Column indexes that contain Excel serial dates and should be formatted as dates */
   dateCols?: number[];
+  /** Column indexes that should be center-aligned (overrides numeric right-align) */
+  centerCols?: number[];
   /** Explicit column widths (px or %) — length must match column count */
   colWidths?: string[];
   /** Top offset (px) for sticky header row, accounting for fixed navbars above the table */
   stickyOffset?: number;
 };
 
-function XlsxSheetImpl({ data, title, percentCols = [], rawNumberCols = [], boldRows = [], sectionRows = [], mergeRows = [], rowAccentFn, autoLayout, dateCols = [], colWidths, stickyOffset = 40 }: Props) {
+function XlsxSheetImpl({ data, title, percentCols = [], rawNumberCols = [], boldRows = [], sectionRows = [], mergeRows = [], rowAccentFn, autoLayout, dateCols = [], centerCols = [], colWidths, stickyOffset = 36 }: Props) {
   if (!data || data.length === 0) return null;
   const colCount = Math.max(...data.map((r) => r.length));
+
+  // Local widths override from drag-resize
+  const [widthOverrides, setWidthOverrides] = React.useState<Record<number, number>>({});
+  const tableRef = React.useRef<HTMLTableElement>(null);
+  const dragRef = React.useRef<{ colIdx: number; startX: number; startWidth: number } | null>(null);
+
+  React.useEffect(() => {
+    function onMove(e: MouseEvent) {
+      if (!dragRef.current) return;
+      const { colIdx, startX, startWidth } = dragRef.current;
+      const newWidth = Math.max(30, startWidth + (e.clientX - startX));
+      setWidthOverrides((prev) => ({ ...prev, [colIdx]: newWidth }));
+    }
+    function onUp() { dragRef.current = null; document.body.style.cursor = ""; }
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
+  }, []);
+
+  function startResize(colIdx: number, e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    const cols = tableRef.current?.querySelectorAll("colgroup col");
+    const col = cols?.[colIdx] as HTMLTableColElement | undefined;
+    const startWidth = col ? col.getBoundingClientRect().width : 100;
+    dragRef.current = { colIdx, startX: e.clientX, startWidth };
+    document.body.style.cursor = "col-resize";
+  }
 
   // Find the single header row to stick: the last boldRow among the initial bold/section streak
   let stickyRow = -1;
@@ -68,6 +98,20 @@ function XlsxSheetImpl({ data, title, percentCols = [], rawNumberCols = [], bold
     else break;
   }
 
+  // Detect which columns are numeric based on data rows, so header cells can right-align over number columns
+  const numericCols = new Set<number>();
+  for (let c = 0; c < colCount; c++) {
+    if (rawNumberCols.includes(c)) continue;
+    for (let r = 0; r < data.length; r++) {
+      if (boldRows.includes(r) || sectionRows.includes(r) || mergeRows.includes(r)) continue;
+      const v = data[r]?.[c];
+      if (typeof v === "number" && !(dateCols.includes(c) && isExcelDate(v))) {
+        numericCols.add(c);
+        break;
+      }
+    }
+  }
+
   return (
     <div className="rounded-xl border border-neutral-200 bg-white shadow-sm">
       {title && (
@@ -75,10 +119,16 @@ function XlsxSheetImpl({ data, title, percentCols = [], rawNumberCols = [], bold
           <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-neutral-700">{title}</div>
         </div>
       )}
-      <table className={cn("w-full border-collapse text-[10.5px] tabular font-sans", autoLayout && !colWidths ? "table-auto" : "table-fixed")}>
+      <table
+        ref={tableRef}
+        style={{ fontFamily: '"Trebuchet MS", "Lucida Sans", Tahoma, sans-serif' }}
+        className={cn("w-full border-collapse text-[9px] tabular", autoLayout && !colWidths ? "table-auto" : "table-fixed")}
+      >
         {colWidths && (
           <colgroup>
-            {colWidths.map((w, i) => <col key={i} style={{ width: w }} />)}
+            {colWidths.map((w, i) => (
+              <col key={i} style={{ width: widthOverrides[i] ? `${widthOverrides[i]}px` : w }} />
+            ))}
           </colgroup>
         )}
         <tbody>
@@ -127,13 +177,22 @@ function XlsxSheetImpl({ data, title, percentCols = [], rawNumberCols = [], bold
                   const isDate = dateCols.includes(cIdx) && isNumber(v) && isExcelDate(v as number);
                   const numeric = isNumber(v) && !rawNumberCols.includes(cIdx) && !isDate;
                   const pct = percentCols.includes(cIdx);
-                  const display = isEmpty(v)
+                  const rawDisplay = isEmpty(v)
                     ? ""
                     : isDate
                     ? excelDateToString(v as number)
                     : numeric
                     ? formatCellNumber(v as number, pct)
                     : String(v);
+                  const hasLineBreak = typeof rawDisplay === "string" && rawDisplay.includes("\n");
+                  const display = hasLineBreak
+                    ? rawDisplay.split("\n").map((line, i, arr) => (
+                        <React.Fragment key={i}>
+                          {line}
+                          {i < arr.length - 1 && <br />}
+                        </React.Fragment>
+                      ))
+                    : rawDisplay;
                   const isNeg = numeric && (v as number) < 0;
                   const statusTag = typeof v === "string" && /^\[(To Be Paid|To Be Confirmed|Confirm)\]$/i.test(v) ? v.toLowerCase() : null;
                   const statusColor = statusTag
@@ -141,15 +200,18 @@ function XlsxSheetImpl({ data, title, percentCols = [], rawNumberCols = [], bold
                     : statusTag.includes("confirm") ? "text-emerald-600 font-semibold"
                     : "text-red-600 font-semibold"
                     : null;
+                  const titleAttr = !isHeader && !isGroupHeader && !isEmpty(v) && !numeric ? String(v) : undefined;
                   return (
                     <td
                       key={cIdx}
                       colSpan={span > 1 ? span : undefined}
+                      title={titleAttr}
                       className={cn(
-                        "border-b border-neutral-100 px-2 py-1.5 align-middle text-[10.5px] leading-tight overflow-hidden",
-                        numeric ? "text-right tabular-nums" : shouldMerge && span > 1 ? "text-center" : "text-left",
-                        isHeader && "text-[9.5px] font-bold uppercase tracking-wider text-neutral-600 py-2 bg-neutral-100 border-b-2 border-neutral-300 shadow-[0_1px_0_0_#d1d5db]",
-                        isGroupHeader && "text-[10px] font-bold uppercase tracking-[0.14em] text-neutral-500 py-1.5 border-r border-neutral-200 last:border-r-0 bg-neutral-50",
+                        "border-b border-neutral-100 px-2 py-0.5 align-middle text-[9px] leading-tight overflow-hidden",
+                        hasLineBreak ? "whitespace-normal" : "whitespace-nowrap",
+                        centerCols.includes(cIdx) ? "text-center tabular-nums" : numeric ? "text-right tabular-nums" : shouldMerge && span > 1 ? "text-center" : isHeader && numericCols.has(cIdx) ? "text-right" : "text-left",
+                        isHeader && "font-mono text-[9px] font-bold uppercase tracking-wider text-neutral-600 px-2 py-2 h-12 align-middle bg-neutral-100 border-b-2 border-neutral-300 shadow-[0_1px_0_0_#d1d5db] leading-[1.2]",
+                        isGroupHeader && "font-mono text-[9px] font-bold uppercase tracking-[0.14em] text-neutral-500 px-2 py-1 text-center border-r border-neutral-200 last:border-r-0 bg-neutral-50 whitespace-nowrap",
                         isNeg && "text-red-600 font-medium",
                         isBold && !isHeader && "font-semibold text-neutral-900",
                         isSection && !isGroupHeader && "font-bold text-neutral-900",
@@ -160,9 +222,17 @@ function XlsxSheetImpl({ data, title, percentCols = [], rawNumberCols = [], bold
                       style={{
                         ...(cellIdx === 0 && accent ? { boxShadow: `inset 3px 0 0 0 ${accent === "green" ? "#059669" : accent === "yellow" ? "#d97706" : "#dc2626"}` } : {}),
                         ...(isSticky ? { top: stickyOffset, position: "sticky" as const, zIndex: 20, backgroundColor: "#f3f4f6" } : {}),
+                        ...(isHeader ? { position: isSticky ? "sticky" as const : "relative" as const } : {}),
                       }}
                     >
                       {display}
+                      {isHeader && (
+                        <span
+                          onMouseDown={(e) => startResize(cIdx, e)}
+                          className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize select-none hover:bg-boulder-400/40"
+                          style={{ userSelect: "none" }}
+                        />
+                      )}
                     </td>
                   );
                 })}

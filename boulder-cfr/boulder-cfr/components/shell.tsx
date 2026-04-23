@@ -41,9 +41,9 @@ export function TopBar({
         {breadcrumb && <div className="text-sm text-neutral-600 flex-1 min-w-0 truncate">{breadcrumb}</div>}
 
         <div className="ml-auto flex items-center gap-3">
+          <div id="topbar-slot" className="flex items-center gap-3" />
           <div className="hidden md:flex flex-col items-end leading-tight">
             <span className="text-xs font-semibold text-neutral-900">{user.name}</span>
-            <span className="text-[10px] text-neutral-500 truncate max-w-[200px]">{user.email}</span>
           </div>
           <div
             className="h-8 w-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold"
