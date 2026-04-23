@@ -152,7 +152,7 @@ export async function deleteBidLineItem(id: string) {
 // ── Transactions ──────────────────────────────────────────────────────────────
 
 export async function getTransactions(projectId: string) {
-  const { data, error } = await db.from("transactions").select("*").eq("project_id", projectId).order("date", { ascending: false });
+  const { data, error } = await db.from("transactions").select("*").eq("project_id", projectId).order("date", { ascending: false, nullsFirst: false });
   return (must(data, error) ?? []).map(toCamel);
 }
 

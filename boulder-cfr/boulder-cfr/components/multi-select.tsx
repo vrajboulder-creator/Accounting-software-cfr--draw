@@ -3,6 +3,10 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { ChevronRight, X } from "lucide-react";
 
+type Opt = string | { value: string; label: string };
+function getValue(o: Opt): string { return typeof o === "string" ? o : o.value; }
+function getLabel(o: Opt): string { return typeof o === "string" ? o : o.label; }
+
 export function MultiSelect({
   label,
   options,
@@ -12,7 +16,7 @@ export function MultiSelect({
   maxDisplay = 2,
 }: {
   label: string;
-  options: string[];
+  options: Opt[];
   selected: string[];
   onChange: (next: string[]) => void;
   className?: string;
@@ -39,13 +43,20 @@ export function MultiSelect({
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return options;
-    return options.filter((o) => o.toLowerCase().includes(q));
+    return options.filter((o) => getLabel(o).toLowerCase().includes(q));
   }, [options, query]);
+
+  const valueToLabel = React.useMemo(() => {
+    const m = new Map<string, string>();
+    for (const o of options) m.set(getValue(o), getLabel(o));
+    return m;
+  }, [options]);
+  const selectedLabels = selected.map((v) => valueToLabel.get(v) ?? v);
 
   const labelText = selected.length === 0
     ? label
     : selected.length <= maxDisplay
-    ? `${label}: ${selected.join(", ")}`
+    ? `${label}: ${selectedLabels.join(", ")}`
     : `${label} (${selected.length})`;
 
   return (
@@ -74,16 +85,19 @@ export function MultiSelect({
           <div className="max-h-52 overflow-auto py-1">
             {filtered.length === 0 ? (
               <div className="px-2 py-1 text-[10px] text-neutral-400">No matches</div>
-            ) : filtered.map((o) => (
-              <label key={o} className="flex items-center gap-2 px-2 py-1 text-[10px] hover:bg-neutral-50 cursor-pointer">
-                <input type="checkbox" checked={selected.includes(o)} onChange={() => toggle(o)} className="accent-boulder-500" />
-                <span className="truncate">{o}</span>
-              </label>
-            ))}
+            ) : filtered.map((o) => {
+              const v = getValue(o);
+              return (
+                <label key={v} className="flex items-center gap-2 px-2 py-1 text-[10px] hover:bg-neutral-50 cursor-pointer">
+                  <input type="checkbox" checked={selected.includes(v)} onChange={() => toggle(v)} className="accent-boulder-500" />
+                  <span className="truncate">{getLabel(o)}</span>
+                </label>
+              );
+            })}
           </div>
           {(selected.length > 0 || filtered.length > 0) && (
             <div className="flex items-center justify-between gap-2 px-2 py-1.5 border-t border-neutral-100 text-[10px]">
-              <button onClick={() => onChange(filtered)} className="text-boulder-600 hover:text-boulder-800 font-semibold">Select all</button>
+              <button onClick={() => onChange(filtered.map(getValue))} className="text-boulder-600 hover:text-boulder-800 font-semibold">Select all</button>
               {selected.length > 0 && (
                 <button onClick={() => onChange([])} className="flex items-center gap-0.5 text-neutral-500 hover:text-neutral-700">
                   <X className="h-2.5 w-2.5" />Clear

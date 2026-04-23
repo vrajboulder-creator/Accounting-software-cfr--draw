@@ -1191,7 +1191,7 @@ export function CFRTab({ data }: { data: ProjectPageData }) {
     net: divisions.reduce((s, d) => s + d.netReceivedCents, 0),
   };
   const remaining = totals.scheduled - totals.gross;
-  const showDivFilter = activeTab === "bid" || activeTab === "simplified" || activeTab === "detail";
+  const showDivFilter = activeTab === "simplified" || activeTab === "detail";
 
   const entryCount = React.useMemo(() => {
     const divNumSet = selectedDiv.length === 0 ? null : new Set(selectedDiv.map((s) => parseInt(s.split(".")[0])));
@@ -1235,35 +1235,16 @@ export function CFRTab({ data }: { data: ProjectPageData }) {
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <TabsList>
             <TabsTrigger value="summary">Summary</TabsTrigger>
-            <TabsTrigger value="bid">Bid</TabsTrigger>
             <TabsTrigger value="simplified">Simplified</TabsTrigger>
             <TabsTrigger value="detail">Detail</TabsTrigger>
             {["contractor_admin","contractor_pm"].includes(role) && (
               <TabsTrigger value="manage">Manage</TabsTrigger>
             )}
           </TabsList>
-          {showDivFilter && activeTab === "bid" && (
-            <div ref={filterAnchorRef} className="flex items-center gap-3" style={{ visibility: filterInTopBar ? "hidden" : "visible" }}>
-              <span className="text-xs text-neutral-500">{entryCount} entries</span>
-              <MultiSelect label="Division" options={divisions.map((d) => `${d.number}. ${d.name}`)} selected={selectedDiv} onChange={setSelectedDiv} />
-            </div>
-          )}
         </div>
-
-        {showDivFilter && filterInTopBar && topbarSlot && activeTab !== "simplified" && activeTab !== "detail" && createPortal(
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] text-neutral-500">{entryCount} entries</span>
-            <MultiSelect label="Division" options={divisions.map((d) => `${d.number}. ${d.name}`)} selected={selectedDiv} onChange={setSelectedDiv} />
-          </div>,
-          topbarSlot
-        )}
 
         <TabsContent value="summary">
           <CFRSummaryDB data={data} />
-        </TabsContent>
-
-        <TabsContent value="bid" className="mt-3">
-          <CFRBidDB data={data} selected={selectedDiv} />
         </TabsContent>
 
         <TabsContent value="simplified" forceMount className="data-[state=inactive]:hidden mt-3">
@@ -2563,7 +2544,7 @@ function DrawDetailView({ data, draw, drawLineItems, onBack }: {
             <div className="mt-2" style={{ marginLeft: "-4rem", marginRight: "-4rem" }}>
             <div className="space-y-5">
               <div className="sticky top-[56px] z-20 bg-white py-2 px-2 flex items-center gap-1 shadow-sm w-full">
-                <MultiSelect label="Division" options={divisions.map((d) => d.id)} selected={bidFilter} onChange={setBidFilter} />
+                <MultiSelect label="Division" options={divisions.map((d) => ({ value: d.id, label: `${d.number}. ${d.name}` }))} selected={bidFilter} onChange={setBidFilter} />
                 <MultiSelect label="Description" options={[...new Set(bidLineItems.map((b) => b.name).filter(Boolean))].sort()} selected={bidItemFilter} onChange={setBidItemFilter} />
                 <Input value={bidSearch} onChange={(e) => setBidSearch(e.target.value)} placeholder="Search" className="flex-1 min-w-0 h-7 text-[10px]" />
                 <div ref={rangesRef} className="relative shrink-0">
@@ -2926,7 +2907,7 @@ export function TransactionsTab({ data }: { data: ProjectPageData }) {
 
       <div className="mt-4 rounded-xl border border-neutral-200 bg-white p-3">
         <div className="flex flex-wrap items-end gap-2">
-          <MultiSelect label="Division" options={divisions.map((d) => d.id)} selected={filterDivision} onChange={setFilterDivision} />
+          <MultiSelect label="Division" options={divisions.map((d) => ({ value: d.id, label: `${d.number}. ${d.name}` }))} selected={filterDivision} onChange={setFilterDivision} />
           <MultiSelect label="Draw" options={draws.map((d) => String(d.number))} selected={filterDraw} onChange={setFilterDraw} />
           <MultiSelect label="Type" options={["invoice", "payroll", "expense", "change_order_cost", "credit"]} selected={filterType} onChange={setFilterType} />
           <MultiSelect label="Status" options={["pending", "paid", "voided"]} selected={filterStatus} onChange={setFilterStatus} />
@@ -3011,7 +2992,7 @@ export function TransactionsTab({ data }: { data: ProjectPageData }) {
                 const div = divisions.find((d) => d.id === t.divisionId);
                 return (
                   <tr key={t.id} className="border-t border-neutral-100 hover:bg-neutral-50/60">
-                    <td className="py-3 pl-5 pr-3 text-neutral-500">{t.date ? formatDate(t.date) : "—"}</td>
+                    <td className="py-3 pl-5 pr-3 text-neutral-500 whitespace-nowrap">{t.date ? formatDate(t.date) : "—"}</td>
                     <td className="py-3 px-3 font-medium text-neutral-950">{t.vendor}</td>
                     <td className="py-3 px-3 text-neutral-700">{t.description}</td>
                     <td className="py-3 px-3"><Badge variant="outline" className="font-normal">{div?.number} · {div?.name}</Badge></td>
