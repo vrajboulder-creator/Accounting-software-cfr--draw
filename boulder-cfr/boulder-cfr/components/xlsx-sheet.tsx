@@ -223,9 +223,10 @@ function XlsxSheetImpl({ data, title, percentCols = [], rawNumberCols = [], bold
                       ))
                     : rawDisplay;
                   const isNeg = numeric && (v as number) < 0;
-                  const statusTag = typeof v === "string" && /^(\[(To Be Paid|To Be Confirmed|Confirm)\]|No)$/i.test(v.trim()) ? v.toLowerCase().trim() : null;
+                  const statusTag = typeof v === "string" && /^(\[(To Be Paid|To Be Confirmed|Confirm|TBD)\]|No)$/i.test(v.trim()) ? v.toLowerCase().trim() : null;
                   const statusColor = statusTag
                     ? statusTag === "no" ? "text-red-500 font-bold"
+                    : statusTag.includes("tbd") ? "text-yellow-500 font-bold"
                     : statusTag.includes("to be confirmed") ? "text-red-500 font-bold"
                     : statusTag.includes("confirm") ? "text-emerald-600 font-semibold"
                     : "text-red-600 font-semibold"

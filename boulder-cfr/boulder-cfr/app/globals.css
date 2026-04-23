@@ -156,6 +156,10 @@ table .text-red-500 {
 table .text-emerald-600 {
   color: #16a34a !important;
 }
+/* Bright yellow for [TBD] status */
+table .text-yellow-500 {
+  color: #ffee00 !important;
+}
 table [class*="text-amber-"],
 table [class*="text-yellow-"] {
   color: #a16207 !important;
