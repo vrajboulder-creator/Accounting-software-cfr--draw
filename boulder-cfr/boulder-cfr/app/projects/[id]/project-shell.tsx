@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { MultiSelect } from "@/components/multi-select";
 import { StatCard } from "@/components/stat-card";
 import { XlsxSheet } from "@/components/xlsx-sheet";
 import { AnimatePresence, motion } from "framer-motion";
@@ -401,7 +402,7 @@ export function OverviewTab({ data, setActiveTab, onOpenDraw }: { data: ProjectP
                     <React.Fragment key={d.id}>
                     <tr className="border-t border-neutral-100 hover:bg-neutral-50/60 transition-colors">
                       <td className="py-3 pl-5 pr-3">
-                        <div className="h-8 w-8 rounded-lg bg-boulder-50 text-boulder-700 flex items-center justify-center font-bold text-sm tabular">
+                        <div className="h-8 w-8 rounded-lg bg-neutral-100 text-neutral-700 flex items-center justify-center font-bold text-sm tabular">
                           {d.number}
                         </div>
                       </td>
@@ -783,14 +784,25 @@ function CFRSummaryDB({ data }: { data: ProjectPageData }) {
   );
 }
 
-function CFRBidDB({ data, selected = "all" }: { data: ProjectPageData; selected?: string }) {
+type AnalyticsMode = "none" | "sum" | "avg" | "max" | "min" | "diff";
+function computeAnalytics(values: number[], mode: AnalyticsMode): number | null {
+  if (mode === "none" || !values.length) return null;
+  if (mode === "sum") return values.reduce((a, b) => a + b, 0);
+  if (mode === "avg") return values.reduce((a, b) => a + b, 0) / values.length;
+  if (mode === "max") return Math.max(...values);
+  if (mode === "min") return Math.min(...values);
+  if (mode === "diff") return Math.max(...values) - Math.min(...values);
+  return null;
+}
+
+function CFRBidDB({ data, selected = [] }: { data: ProjectPageData; selected?: string[] }) {
   const { divisions, bidLineItems } = data;
 
   const rowsBySection = React.useMemo(() => {
     const out: Cell[][] = [];
     out.push(["#", "Description", "Coding", "Budget", "Total Spend", "Remaining", "Percentage"]);
 
-    const visibleDivs = selected === "all" ? divisions : divisions.filter((d) => `${d.number}. ${d.name}` === selected);
+    const visibleDivs = selected.length === 0 ? divisions : divisions.filter((d) => selected.includes(`${d.number}. ${d.name}`));
 
     for (const div of visibleDivs) {
       out.push([`${div.number}. ${div.name}`, "", "", "", "", "", ""]);
@@ -830,18 +842,17 @@ function CFRBidDB({ data, selected = "all" }: { data: ProjectPageData; selected?
   );
 }
 
-function CFRDetailDB({ data, simplified, selected = "all", setSelected, active = true }: { data: ProjectPageData; simplified?: boolean; selected?: string; setSelected?: (v: string) => void; active?: boolean }) {
+function CFRDetailDB({ data, simplified, selected = [], setSelected, active = true }: { data: ProjectPageData; simplified?: boolean; selected?: string[]; setSelected?: (v: string[]) => void; active?: boolean }) {
   const { divisions, transactions, receivedFunds, bidLineItems } = data;
   const [search, setSearch] = React.useState("");
-  const [diffMode, setDiffMode] = React.useState(false);
-  const [fG703, setFG703] = React.useState("all");
-  const [fDescription, setFDescription] = React.useState("all");
-  const [fCommentary, setFCommentary] = React.useState("all");
-  const [fVendor, setFVendor] = React.useState("all");
-  const [fPaidBy, setFPaidBy] = React.useState("all");
-  const [fBackup, setFBackup] = React.useState("all");
-  const [fReceivedK1, setFReceivedK1] = React.useState("all");
-  const [fType, setFType] = React.useState("all");
+  const [fG703, setFG703] = React.useState<string[]>([]);
+  const [fDescription, setFDescription] = React.useState<string[]>([]);
+  const [fCommentary, setFCommentary] = React.useState<string[]>([]);
+  const [fVendor, setFVendor] = React.useState<string[]>([]);
+  const [fPaidBy, setFPaidBy] = React.useState<string[]>([]);
+  const [fBackup, setFBackup] = React.useState<string[]>([]);
+  const [fReceivedK1, setFReceivedK1] = React.useState<string[]>([]);
+  const [fType, setFType] = React.useState<string[]>([]);
 
   const rows = React.useMemo(() => {
     const blMap = new Map(bidLineItems.map((b) => [b.id, b]));
@@ -906,18 +917,18 @@ function CFRDetailDB({ data, simplified, selected = "all", setSelected, active =
     }
 
     let filtered = entries;
-    if (selected !== "all") {
-      const divNum = parseInt(selected.split(".")[0]);
-      filtered = filtered.filter((e) => e.divNum === divNum);
+    if (selected.length > 0) {
+      const divNums = new Set(selected.map((s) => parseInt(s.split(".")[0])));
+      filtered = filtered.filter((e) => divNums.has(e.divNum));
     }
-    if (fG703 !== "all") filtered = filtered.filter((e) => String(e.g703 ?? "") === fG703);
-    if (fDescription !== "all") filtered = filtered.filter((e) => e.description === fDescription);
-    if (fCommentary !== "all") filtered = filtered.filter((e) => e.commentary === fCommentary);
-    if (fVendor !== "all") filtered = filtered.filter((e) => e.counterparty === fVendor);
-    if (fPaidBy !== "all") filtered = filtered.filter((e) => e.paidBy === fPaidBy);
-    if (fBackup !== "all") filtered = filtered.filter((e) => e.backup === fBackup);
-    if (fReceivedK1 !== "all") filtered = filtered.filter((e) => (e.receivedK1 || "NA") === fReceivedK1);
-    if (fType !== "all") filtered = filtered.filter((e) => e.type === fType);
+    if (fG703.length) filtered = filtered.filter((e) => fG703.includes(String(e.g703 ?? "")));
+    if (fDescription.length) filtered = filtered.filter((e) => fDescription.includes(e.description));
+    if (fCommentary.length) filtered = filtered.filter((e) => fCommentary.includes(e.commentary));
+    if (fVendor.length) filtered = filtered.filter((e) => fVendor.includes(e.counterparty));
+    if (fPaidBy.length) filtered = filtered.filter((e) => fPaidBy.includes(e.paidBy));
+    if (fBackup.length) filtered = filtered.filter((e) => fBackup.includes(e.backup));
+    if (fReceivedK1.length) filtered = filtered.filter((e) => fReceivedK1.includes(e.receivedK1 || "NA"));
+    if (fType.length) filtered = filtered.filter((e) => fType.includes(e.type));
     if (search.trim()) {
       const q = search.toLowerCase();
       filtered = filtered.filter((e) =>
@@ -960,30 +971,7 @@ function CFRDetailDB({ data, simplified, selected = "all", setSelected, active =
       return (a.date ?? "").localeCompare(b.date ?? "");
     });
 
-    // Compute column totals for analytics row + diff mode
-    let totDebitGross = 0, totDebitRetn = 0, totDebitNet = 0;
-    let totCreditGross = 0, totCreditRetn = 0, totCreditNet = 0;
-    for (const e of filtered) {
-      totDebitGross += e.debitGross;
-      totDebitRetn += e.debitRetn;
-      totDebitNet += e.debitNet;
-      totCreditGross += e.creditGross;
-      totCreditRetn += e.creditRetn;
-      totCreditNet += e.creditNet;
-    }
-
     const out: Cell[][] = [];
-    // Analytics row (totals)
-    out.push([
-      "TOTAL", "", "", "", "",
-      totDebitGross / 100 || "—",
-      totDebitRetn / 100 || "—",
-      totDebitNet / 100 || "—",
-      totCreditGross / 100 || "—",
-      totCreditRetn / 100 || "—",
-      totCreditNet / 100 || "—",
-      "", "", "", "", "", "",
-    ]);
     // Group header row: Debits / Credits / Other Information
     out.push([
       "", "", "", "", "",
@@ -1006,24 +994,18 @@ function CFRDetailDB({ data, simplified, selected = "all", setSelected, active =
         out.push([`${e.divNum}. ${div?.name ?? ""}`, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
         lastDiv = e.divNum;
       }
-      const dG = diffMode ? (e.debitGross - totDebitGross) / 100 : e.debitGross / 100 || "—";
-      const dR = diffMode ? (e.debitRetn - totDebitRetn) / 100 : e.debitRetn / 100 || "—";
-      const dN = diffMode ? (e.debitNet - totDebitNet) / 100 : e.debitNet / 100 || "—";
-      const cG = diffMode ? (e.creditGross - totCreditGross) / 100 : e.creditGross / 100 || "—";
-      const cR = diffMode ? (e.creditRetn - totCreditRetn) / 100 : e.creditRetn / 100 || "—";
-      const cN = diffMode ? (e.creditNet - totCreditNet) / 100 : e.creditNet / 100 || "—";
       out.push([
         e.date ? new Date(e.date).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }) : "",
         e.g703 ?? "",
         e.drawNum ?? "",
         e.description,
         e.commentary,
-        dG,
-        dR,
-        dN,
-        cG,
-        cR,
-        cN,
+        e.debitGross / 100 || "—",
+        e.debitRetn / 100 || "—",
+        e.debitNet / 100 || "—",
+        e.creditGross / 100 || "—",
+        e.creditRetn / 100 || "—",
+        e.creditNet / 100 || "—",
         e.bidItem,
         e.counterparty,
         e.paidBy,
@@ -1036,7 +1018,7 @@ function CFRDetailDB({ data, simplified, selected = "all", setSelected, active =
       ]);
     }
     return out;
-  }, [transactions, receivedFunds, divisions, bidLineItems, selected, simplified, search, fG703, fDescription, fCommentary, fVendor, fPaidBy, fBackup, fReceivedK1, fType, diffMode]);
+  }, [transactions, receivedFunds, divisions, bidLineItems, selected, simplified, search, fG703, fDescription, fCommentary, fVendor, fPaidBy, fBackup, fReceivedK1, fType]);
 
   const uniqueOptions = React.useMemo(() => {
     const all = { g703: new Set<string>(), description: new Set<string>(), commentary: new Set<string>(), vendor: new Set<string>(), paidBy: new Set<string>(), backup: new Set<string>(), receivedK1: new Set<string>(), type: new Set<string>() };
@@ -1076,12 +1058,12 @@ function CFRDetailDB({ data, simplified, selected = "all", setSelected, active =
   }, [transactions, receivedFunds, divisions]);
 
   const divisionRows = rows.reduce<number[]>((acc, r, i) => {
-    if (i < 3) return acc;
+    if (i < 2) return acc;
     if (typeof r[0] === "string" && /^\d+\./.test(r[0])) acc.push(i);
     return acc;
   }, []);
 
-  const hasFilters = search || fG703 !== "all" || fDescription !== "all" || fCommentary !== "all" || fVendor !== "all" || fPaidBy !== "all" || fBackup !== "all" || fReceivedK1 !== "all" || fType !== "all";
+  const hasFilters = !!search || fG703.length > 0 || fDescription.length > 0 || fCommentary.length > 0 || fVendor.length > 0 || fPaidBy.length > 0 || fBackup.length > 0 || fReceivedK1.length > 0 || fType.length > 0;
 
   const [topbarSlot, setTopbarSlot] = React.useState<HTMLElement | null>(null);
   React.useEffect(() => {
@@ -1099,16 +1081,7 @@ function CFRDetailDB({ data, simplified, selected = "all", setSelected, active =
             className="shrink-0 h-7 text-xs w-64"
           />
           {setSelected && (
-            <select
-              value={selected}
-              onChange={(e) => setSelected(e.target.value)}
-              className="shrink-0 text-[10px] border border-neutral-300 rounded-md px-1.5 py-1 bg-white text-neutral-900 focus:outline-none focus:ring-1 focus:ring-boulder-400 max-w-[140px]"
-            >
-              <option value="all">Division</option>
-              {divisions.map((d) => (
-                <option key={d.id} value={`${d.number}. ${d.name}`}>{d.number}. {d.name}</option>
-              ))}
-            </select>
+            <MultiSelect label="Division" options={divisions.map((d) => `${d.number}. ${d.name}`)} selected={selected} onChange={setSelected} />
           )}
           {[
             { label: "G703", val: fG703, set: setFG703, opts: uniqueOptions.g703 },
@@ -1120,19 +1093,11 @@ function CFRDetailDB({ data, simplified, selected = "all", setSelected, active =
             { label: "Received", val: fReceivedK1, set: setFReceivedK1, opts: uniqueOptions.receivedK1 },
             { label: "Type", val: fType, set: setFType, opts: uniqueOptions.type },
           ].map((f) => (
-            <select
-              key={f.label}
-              value={f.val}
-              onChange={(e) => f.set(e.target.value)}
-              className="shrink-0 text-[10px] border border-neutral-300 rounded-md px-1.5 py-1 bg-white text-neutral-900 focus:outline-none focus:ring-1 focus:ring-boulder-400 max-w-[120px]"
-            >
-              <option value="all">{f.label}</option>
-              {f.opts.map((o) => <option key={o} value={o}>{o}</option>)}
-            </select>
+            <MultiSelect key={f.label} label={f.label} options={f.opts} selected={f.val} onChange={f.set} />
           ))}
           {hasFilters && (
             <button
-              onClick={() => { setSearch(""); setFG703("all"); setFDescription("all"); setFCommentary("all"); setFVendor("all"); setFPaidBy("all"); setFBackup("all"); setFReceivedK1("all"); setFType("all"); }}
+              onClick={() => { setSearch(""); setFG703([]); setFDescription([]); setFCommentary([]); setFVendor([]); setFPaidBy([]); setFBackup([]); setFReceivedK1([]); setFType([]); }}
               title="Clear all"
               className="shrink-0 text-[10px] font-bold text-boulder-600 hover:text-boulder-800 px-1"
             >
@@ -1186,7 +1151,7 @@ export function CFRTab({ data }: { data: ProjectPageData }) {
   const { divisions, bidLineItems, transactions, receivedFunds } = data;
   const { role } = useRole();
   const [activeTab, setActiveTab] = React.useState("summary");
-  const [selectedDiv, setSelectedDiv] = React.useState("all");
+  const [selectedDiv, setSelectedDiv] = React.useState<string[]>([]);
   const [filterInTopBar, setFilterInTopBar] = React.useState(false);
   const filterAnchorRef = React.useRef<HTMLDivElement>(null);
 
@@ -1229,21 +1194,24 @@ export function CFRTab({ data }: { data: ProjectPageData }) {
   const showDivFilter = activeTab === "bid" || activeTab === "simplified" || activeTab === "detail";
 
   const entryCount = React.useMemo(() => {
-    const divNumFilter = selectedDiv === "all" ? null : parseInt(selectedDiv.split(".")[0]);
+    const divNumSet = selectedDiv.length === 0 ? null : new Set(selectedDiv.map((s) => parseInt(s.split(".")[0])));
     const divMap = new Map(divisions.map((d) => [d.id, d.number]));
     if (activeTab === "bid") {
       let n = 0;
       for (const b of bidLineItems) {
-        if (divNumFilter === null || divMap.get(b.divisionId) === divNumFilter) n++;
+        const dn = divMap.get(b.divisionId);
+        if (divNumSet === null || (dn !== undefined && divNumSet.has(dn))) n++;
       }
       return n;
     }
     let n = 0;
     for (const t of transactions) {
-      if (divNumFilter === null || divMap.get(t.divisionId) === divNumFilter) n++;
+      const dn = divMap.get(t.divisionId);
+      if (divNumSet === null || (dn !== undefined && divNumSet.has(dn))) n++;
     }
     for (const r of receivedFunds) {
-      if (divNumFilter === null || divMap.get(r.divisionId) === divNumFilter) n++;
+      const dn = divMap.get(r.divisionId);
+      if (divNumSet === null || (dn !== undefined && divNumSet.has(dn))) n++;
     }
     return n;
   }, [activeTab, transactions, receivedFunds, bidLineItems, divisions, selectedDiv]);
@@ -1277,17 +1245,7 @@ export function CFRTab({ data }: { data: ProjectPageData }) {
           {showDivFilter && activeTab === "bid" && (
             <div ref={filterAnchorRef} className="flex items-center gap-3" style={{ visibility: filterInTopBar ? "hidden" : "visible" }}>
               <span className="text-xs text-neutral-500">{entryCount} entries</span>
-              <label className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">Division</label>
-              <select
-                value={selectedDiv}
-                onChange={(e) => setSelectedDiv(e.target.value)}
-                className="text-sm border border-neutral-300 rounded-lg px-3 py-1.5 bg-white text-neutral-900 focus:outline-none focus:ring-2 focus:ring-boulder-400"
-              >
-                <option value="all">All divisions</option>
-                {divisions.map((d) => (
-                  <option key={d.id} value={`${d.number}. ${d.name}`}>{d.number}. {d.name}</option>
-                ))}
-              </select>
+              <MultiSelect label="Division" options={divisions.map((d) => `${d.number}. ${d.name}`)} selected={selectedDiv} onChange={setSelectedDiv} />
             </div>
           )}
         </div>
@@ -1295,16 +1253,7 @@ export function CFRTab({ data }: { data: ProjectPageData }) {
         {showDivFilter && filterInTopBar && topbarSlot && activeTab !== "simplified" && activeTab !== "detail" && createPortal(
           <div className="flex items-center gap-2">
             <span className="text-[10px] text-neutral-500">{entryCount} entries</span>
-            <select
-              value={selectedDiv}
-              onChange={(e) => setSelectedDiv(e.target.value)}
-              className="text-xs border border-neutral-300 rounded-md px-2 py-1 bg-white text-neutral-900 focus:outline-none focus:ring-2 focus:ring-boulder-400"
-            >
-              <option value="all">All divisions</option>
-              {divisions.map((d) => (
-                <option key={d.id} value={`${d.number}. ${d.name}`}>{d.number}. {d.name}</option>
-              ))}
-            </select>
+            <MultiSelect label="Division" options={divisions.map((d) => `${d.number}. ${d.name}`)} selected={selectedDiv} onChange={setSelectedDiv} />
           </div>,
           topbarSlot
         )}
@@ -1342,10 +1291,10 @@ export function BackupTab({ data }: { data: ProjectPageData }) {
   const [expanded, setExpanded] = React.useState<Set<string>>(new Set());
   const [openTxId, setOpenTxId] = React.useState<string | null>(null);
   const [search, setSearch] = React.useState("");
-  const [fBackup, setFBackup] = React.useState("all");
-  const [fVendor, setFVendor] = React.useState("all");
-  const [fAttachments, setFAttachments] = React.useState("all");
-  const [fBacId, setFBacId] = React.useState("all");
+  const [fBackup, setFBackup] = React.useState<string[]>([]);
+  const [fVendor, setFVendor] = React.useState<string[]>([]);
+  const [fAttachments, setFAttachments] = React.useState<string[]>([]);
+  const [fBacId, setFBacId] = React.useState<string[]>([]);
   const [fAmtMin, setFAmtMin] = React.useState("");
   const [fAmtMax, setFAmtMax] = React.useState("");
 
@@ -1418,10 +1367,10 @@ export function BackupTab({ data }: { data: ProjectPageData }) {
     const amtMin = parseFloat(fAmtMin);
     const amtMax = parseFloat(fAmtMax);
     return groups.filter((g) => {
-      if (fBackup !== "all" && g.backupNo !== fBackup) return false;
-      if (fVendor !== "all" && !g.vendorNames.includes(fVendor)) return false;
-      if (fAttachments !== "all" && String(g.txs.length) !== fAttachments) return false;
-      if (fBacId !== "all" && (g.primaryEmail || "") !== fBacId) return false;
+      if (fBackup.length && !fBackup.includes(g.backupNo)) return false;
+      if (fVendor.length && !g.vendorNames.some((v) => fVendor.includes(v))) return false;
+      if (fAttachments.length && !fAttachments.includes(String(g.txs.length))) return false;
+      if (fBacId.length && !fBacId.includes(g.primaryEmail || "")) return false;
       const amtDollars = g.totalAmount / 100;
       if (Number.isFinite(amtMin) && amtDollars < amtMin) return false;
       if (Number.isFinite(amtMax) && amtDollars > amtMax) return false;
@@ -1442,7 +1391,7 @@ export function BackupTab({ data }: { data: ProjectPageData }) {
   }
 
   const openTx = openTxId ? transactions.find((t) => t.id === openTxId) : null;
-  const hasFilters = search || fBackup !== "all" || fVendor !== "all" || fAttachments !== "all" || fBacId !== "all" || fAmtMin || fAmtMax;
+  const hasFilters = !!search || fBackup.length > 0 || fVendor.length > 0 || fAttachments.length > 0 || fBacId.length > 0 || !!fAmtMin || !!fAmtMax;
   const allAttachmentCounts = React.useMemo(() => [...new Set(groups.map((g) => g.txs.length))].sort((a, b) => a - b), [groups]);
   const allBacIds = React.useMemo(() => [...new Set(groups.map((g) => g.primaryEmail).filter(Boolean) as string[])].sort(), [groups]);
 
@@ -1463,38 +1412,10 @@ export function BackupTab({ data }: { data: ProjectPageData }) {
           placeholder="Search backup, vendor, description…"
           className="h-7 text-xs w-64"
         />
-        <select
-          value={fBackup}
-          onChange={(e) => setFBackup(e.target.value)}
-          className="text-[10px] border border-neutral-300 rounded-md px-1.5 py-1 bg-white text-neutral-900 focus:outline-none focus:ring-1 focus:ring-boulder-400 max-w-[140px]"
-        >
-          <option value="all">Backup No.</option>
-          {groups.map((g) => <option key={g.backupNo} value={g.backupNo}>#{g.backupNo}</option>)}
-        </select>
-        <select
-          value={fVendor}
-          onChange={(e) => setFVendor(e.target.value)}
-          className="text-[10px] border border-neutral-300 rounded-md px-1.5 py-1 bg-white text-neutral-900 focus:outline-none focus:ring-1 focus:ring-boulder-400 max-w-[160px]"
-        >
-          <option value="all">Vendor</option>
-          {allVendors.map((v) => <option key={v} value={v}>{v}</option>)}
-        </select>
-        <select
-          value={fAttachments}
-          onChange={(e) => setFAttachments(e.target.value)}
-          className="text-[10px] border border-neutral-300 rounded-md px-1.5 py-1 bg-white text-neutral-900 focus:outline-none focus:ring-1 focus:ring-boulder-400"
-        >
-          <option value="all">Attachments</option>
-          {allAttachmentCounts.map((n) => <option key={n} value={String(n)}>{n}</option>)}
-        </select>
-        <select
-          value={fBacId}
-          onChange={(e) => setFBacId(e.target.value)}
-          className="text-[10px] border border-neutral-300 rounded-md px-1.5 py-1 bg-white text-neutral-900 focus:outline-none focus:ring-1 focus:ring-boulder-400 max-w-[160px]"
-        >
-          <option value="all">BAC ID</option>
-          {allBacIds.map((b) => <option key={b} value={b}>{b}</option>)}
-        </select>
+        <MultiSelect label="Backup No." options={groups.map((g) => g.backupNo)} selected={fBackup} onChange={setFBackup} />
+        <MultiSelect label="Vendor" options={allVendors} selected={fVendor} onChange={setFVendor} />
+        <MultiSelect label="Attachments" options={allAttachmentCounts.map(String)} selected={fAttachments} onChange={setFAttachments} />
+        <MultiSelect label="BAC ID" options={allBacIds} selected={fBacId} onChange={setFBacId} />
         <Input
           value={fAmtMin}
           onChange={(e) => setFAmtMin(e.target.value)}
@@ -1509,7 +1430,7 @@ export function BackupTab({ data }: { data: ProjectPageData }) {
         />
         {hasFilters && (
           <button
-            onClick={() => { setSearch(""); setFBackup("all"); setFVendor("all"); setFAttachments("all"); setFBacId("all"); setFAmtMin(""); setFAmtMax(""); }}
+            onClick={() => { setSearch(""); setFBackup([]); setFVendor([]); setFAttachments([]); setFBacId([]); setFAmtMin(""); setFAmtMax(""); }}
             className="text-[10px] font-semibold text-boulder-600 hover:text-boulder-800 uppercase tracking-wider"
           >
             Clear
@@ -1556,67 +1477,52 @@ export function BackupTab({ data }: { data: ProjectPageData }) {
                         <span className="text-neutral-400 text-[11px]">—</span>
                       )}
                     </td>
-                    <td className="py-2 px-3">
-                      <div className="flex flex-wrap gap-1">
-                        {g.vendorNames.map((v) => {
-                          const isPrimary = v === g.primaryVendor;
-                          return (
-                            <span
-                              key={v}
-                              className={cn(
-                                "inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium",
-                                isPrimary ? "bg-boulder-100 text-boulder-800" : "bg-neutral-100 text-neutral-700"
-                              )}
-                            >
-                              {v}
-                              {isPrimary && g.vendorNames.length > 1 && <span className="ml-1 text-[9px] font-bold">★</span>}
-                            </span>
-                          );
-                        })}
-                      </div>
+                    <td className="py-2 px-3 text-left">
+                      {g.vendorNames.map((v, i) => {
+                        const isPrimary = v === g.primaryVendor;
+                        return (
+                          <span key={v} className={cn("text-[11px] text-neutral-900", isPrimary && g.vendorNames.length > 1 && "font-semibold")}>
+                            {v}
+                            {i < g.vendorNames.length - 1 && ", "}
+                          </span>
+                        );
+                      })}
                     </td>
                     <td className="py-2 px-3 text-right font-semibold">{formatCurrency(g.totalAmount)}</td>
                     <td className="py-2 px-3 pr-5 text-right font-bold text-neutral-950">{formatCurrency(g.totalNet)}</td>
                   </tr>
                   {isOpen && (
-                    <tr className="bg-neutral-50/60 border-t border-neutral-100">
-                      <td></td>
-                      <td colSpan={6} className="py-2 px-3">
-                        <table className="w-full text-[11px]">
-                          <thead className="text-[9px] uppercase tracking-wider text-neutral-500">
-                            <tr>
-                              <th className="text-left py-1 pr-3 w-32">Trans ID</th>
-                              <th className="text-left py-1 px-3">Description</th>
-                              <th className="text-left py-1 px-3">Vendor</th>
-                              <th className="text-right py-1 px-3 w-28">Amount</th>
-                              <th className="text-right py-1 px-3 w-28">Net</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {g.txs.map((t) => {
-                              const v = (t.vendor || t.counterparty || "—").trim();
-                              const isDifferent = v !== g.primaryVendor;
-                              return (
-                                <tr key={t.id} className="border-t border-neutral-200">
-                                  <td className="py-1 pr-3">
-                                    <button
-                                      onClick={() => setOpenTxId(t.id)}
-                                      className="text-boulder-600 hover:text-boulder-800 font-mono text-[10px]"
-                                    >
-                                      {t.id}
-                                    </button>
-                                  </td>
-                                  <td className="py-1 px-3 text-neutral-700">{t.description}</td>
-                                  <td className={cn("py-1 px-3", isDifferent && "text-red-600 font-semibold")}>{v}</td>
-                                  <td className="py-1 px-3 text-right tabular">{formatCurrency(t.amountCents)}</td>
-                                  <td className="py-1 px-3 text-right tabular">{formatCurrency(t.netCents)}</td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </td>
-                    </tr>
+                    <>
+                      <tr className="bg-yellow-50/70 border-t border-neutral-100 text-[9px] uppercase tracking-wider text-neutral-500">
+                        <td></td>
+                        <td className="py-1 px-3 text-left">Trans ID</td>
+                        <td className="py-1 px-3 text-left" colSpan={2}>Description</td>
+                        <td className="py-1 px-3 text-left">Vendor</td>
+                        <td className="py-1 px-3 text-right">Amount</td>
+                        <td className="py-1 px-3 pr-5 text-right">Net</td>
+                      </tr>
+                      {g.txs.map((t) => {
+                        const v = (t.vendor || t.counterparty || "—").trim();
+                        const isDifferent = v !== g.primaryVendor;
+                        return (
+                          <tr key={t.id} className="bg-yellow-50/40 border-t border-neutral-200 text-[11px]">
+                            <td></td>
+                            <td className="py-1 px-3">
+                              <button
+                                onClick={() => setOpenTxId(t.id)}
+                                className="text-boulder-600 hover:text-boulder-800 font-mono text-[10px]"
+                              >
+                                {t.id}
+                              </button>
+                            </td>
+                            <td className="py-1 px-3 text-neutral-700" colSpan={2}>{t.description}</td>
+                            <td className={cn("py-1 px-3", isDifferent && "text-red-600 font-semibold")}>{v}</td>
+                            <td className="py-1 px-3 text-right tabular">{formatCurrency(t.amountCents)}</td>
+                            <td className="py-1 px-3 pr-5 text-right tabular">{formatCurrency(t.netCents)}</td>
+                          </tr>
+                        );
+                      })}
+                    </>
                   )}
                 </React.Fragment>
               );
@@ -2303,15 +2209,26 @@ function DrawDetailView({ data, draw, drawLineItems, onBack }: {
   const coApproved = changeOrders.filter((c) => c.status === "approved");
   const coAdditions = coApproved.filter((c) => c.amountCents > 0).reduce((s, c) => s + c.amountCents, 0);
   const coDeductions = coApproved.filter((c) => c.amountCents < 0).reduce((s, c) => s + Math.abs(c.amountCents), 0);
-  const [bidFilter, setBidFilter] = React.useState<string>("all");
+  const [bidFilter, setBidFilter] = React.useState<string[]>([]);
   const [bidSearch, setBidSearch] = React.useState("");
-  const [bidItemFilter, setBidItemFilter] = React.useState("all");
+  const [bidItemFilter, setBidItemFilter] = React.useState<string[]>([]);
   const [bidBudgetMin, setBidBudgetMin] = React.useState("");
   const [bidBudgetMax, setBidBudgetMax] = React.useState("");
   const [bidSpendMin, setBidSpendMin] = React.useState("");
   const [bidSpendMax, setBidSpendMax] = React.useState("");
   const [bidPctMin, setBidPctMin] = React.useState("");
   const [bidPctMax, setBidPctMax] = React.useState("");
+  const [rangesOpen, setRangesOpen] = React.useState(false);
+  const rangesRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (!rangesOpen) return;
+    function onOut(e: MouseEvent) {
+      if (rangesRef.current && !rangesRef.current.contains(e.target as Node)) setRangesOpen(false);
+    }
+    document.addEventListener("mousedown", onOut);
+    return () => document.removeEventListener("mousedown", onOut);
+  }, [rangesOpen]);
+  const [showDebitCredit, setShowDebitCredit] = React.useState(false);
   const { role } = useRole();
   const [isPending, startTransition] = useTransition();
 
@@ -2646,48 +2563,70 @@ function DrawDetailView({ data, draw, drawLineItems, onBack }: {
             <div className="mt-2" style={{ marginLeft: "-4rem", marginRight: "-4rem" }}>
             <div className="space-y-5">
               <div className="sticky top-[56px] z-20 bg-white py-2 px-2 flex items-center gap-1 shadow-sm w-full">
-                <select
-                  value={bidFilter}
-                  onChange={(e) => setBidFilter(e.target.value)}
-                  className="flex-1 min-w-0 text-[10px] border border-neutral-300 rounded-md px-1 py-1 bg-white text-neutral-900 focus:outline-none focus:ring-1 focus:ring-boulder-400"
-                >
-                  <option value="all">Division</option>
-                  {divisions.map((d) => (
-                    <option key={d.id} value={d.id}>{d.number}. {d.name}</option>
-                  ))}
-                </select>
-                <select
-                  value={bidItemFilter}
-                  onChange={(e) => setBidItemFilter(e.target.value)}
-                  className="flex-1 min-w-0 text-[10px] border border-neutral-300 rounded-md px-1 py-1 bg-white text-neutral-900 focus:outline-none focus:ring-1 focus:ring-boulder-400"
-                >
-                  <option value="all">Description</option>
-                  {[...new Set(bidLineItems.map((b) => b.name).filter(Boolean))].sort().map((n) => <option key={n} value={n}>{n}</option>)}
-                </select>
+                <MultiSelect label="Division" options={divisions.map((d) => d.id)} selected={bidFilter} onChange={setBidFilter} />
+                <MultiSelect label="Description" options={[...new Set(bidLineItems.map((b) => b.name).filter(Boolean))].sort()} selected={bidItemFilter} onChange={setBidItemFilter} />
                 <Input value={bidSearch} onChange={(e) => setBidSearch(e.target.value)} placeholder="Search" className="flex-1 min-w-0 h-7 text-[10px]" />
-                <Input value={bidBudgetMin} onChange={(e) => setBidBudgetMin(e.target.value)} placeholder="Bgt min" className="flex-1 min-w-0 h-7 text-[10px]" />
-                <Input value={bidBudgetMax} onChange={(e) => setBidBudgetMax(e.target.value)} placeholder="Bgt max" className="flex-1 min-w-0 h-7 text-[10px]" />
-                <Input value={bidSpendMin} onChange={(e) => setBidSpendMin(e.target.value)} placeholder="Spd min" className="flex-1 min-w-0 h-7 text-[10px]" />
-                <Input value={bidSpendMax} onChange={(e) => setBidSpendMax(e.target.value)} placeholder="Spd max" className="flex-1 min-w-0 h-7 text-[10px]" />
-                <Input value={bidPctMin} onChange={(e) => setBidPctMin(e.target.value)} placeholder="% min" className="flex-1 min-w-0 h-7 text-[10px]" />
-                <Input value={bidPctMax} onChange={(e) => setBidPctMax(e.target.value)} placeholder="% max" className="flex-1 min-w-0 h-7 text-[10px]" />
-                {(bidFilter !== "all" || bidSearch || bidItemFilter !== "all" || bidBudgetMin || bidBudgetMax || bidSpendMin || bidSpendMax || bidPctMin || bidPctMax) && (
+                <div ref={rangesRef} className="relative shrink-0">
                   <button
-                    onClick={() => { setBidFilter("all"); setBidSearch(""); setBidItemFilter("all"); setBidBudgetMin(""); setBidBudgetMax(""); setBidSpendMin(""); setBidSpendMax(""); setBidPctMin(""); setBidPctMax(""); }}
-                    className="text-[10px] font-semibold text-boulder-600 hover:text-boulder-800 uppercase tracking-wider"
+                    onClick={() => setRangesOpen((v) => !v)}
+                    className={cn(
+                      "flex items-center gap-1 text-[10px] border rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-boulder-400",
+                      (bidBudgetMin || bidBudgetMax || bidSpendMin || bidSpendMax || bidPctMin || bidPctMax) ? "border-boulder-400 bg-boulder-50 text-boulder-800" : "border-neutral-300 text-neutral-700"
+                    )}
+                  >
+                    Ranges
+                    <ChevronRight className={cn("h-3 w-3 transition-transform", rangesOpen && "rotate-90")} />
+                  </button>
+                  {rangesOpen && (
+                    <div className="absolute right-0 top-full mt-1 z-30 bg-white border border-neutral-200 rounded-lg shadow-lg p-3 w-[280px] space-y-2">
+                      <div className="grid grid-cols-[70px_1fr_1fr] items-center gap-1.5 text-[10px]">
+                        <span className="text-neutral-500">Budget</span>
+                        <Input value={bidBudgetMin} onChange={(e) => setBidBudgetMin(e.target.value)} placeholder="min" className="h-7 text-[10px]" />
+                        <Input value={bidBudgetMax} onChange={(e) => setBidBudgetMax(e.target.value)} placeholder="max" className="h-7 text-[10px]" />
+                        <span className="text-neutral-500">Spend</span>
+                        <Input value={bidSpendMin} onChange={(e) => setBidSpendMin(e.target.value)} placeholder="min" className="h-7 text-[10px]" />
+                        <Input value={bidSpendMax} onChange={(e) => setBidSpendMax(e.target.value)} placeholder="max" className="h-7 text-[10px]" />
+                        <span className="text-neutral-500">%</span>
+                        <Input value={bidPctMin} onChange={(e) => setBidPctMin(e.target.value)} placeholder="min" className="h-7 text-[10px]" />
+                        <Input value={bidPctMax} onChange={(e) => setBidPctMax(e.target.value)} placeholder="max" className="h-7 text-[10px]" />
+                      </div>
+                      {(bidBudgetMin || bidBudgetMax || bidSpendMin || bidSpendMax || bidPctMin || bidPctMax) && (
+                        <button
+                          onClick={() => { setBidBudgetMin(""); setBidBudgetMax(""); setBidSpendMin(""); setBidSpendMax(""); setBidPctMin(""); setBidPctMax(""); }}
+                          className="text-[10px] font-semibold text-boulder-600 hover:text-boulder-800 uppercase tracking-wider"
+                        >
+                          Clear ranges
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {(bidFilter.length > 0 || bidSearch || bidItemFilter.length > 0 || bidBudgetMin || bidBudgetMax || bidSpendMin || bidSpendMax || bidPctMin || bidPctMax) && (
+                  <button
+                    onClick={() => { setBidFilter([]); setBidSearch(""); setBidItemFilter([]); setBidBudgetMin(""); setBidBudgetMax(""); setBidSpendMin(""); setBidSpendMax(""); setBidPctMin(""); setBidPctMax(""); }}
+                    className="shrink-0 text-[10px] font-semibold text-boulder-600 hover:text-boulder-800 uppercase tracking-wider"
                   >
                     Clear
                   </button>
                 )}
+                <button
+                  onClick={() => setShowDebitCredit((v) => !v)}
+                  className={cn(
+                    "shrink-0 text-[10px] font-semibold uppercase tracking-wider px-2 py-1 rounded border",
+                    showDebitCredit ? "bg-boulder-600 text-white border-boulder-600" : "bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50"
+                  )}
+                >
+                  {showDebitCredit ? "Hide D/C" : "Show D/C"}
+                </button>
               </div>
-              {(bidFilter === "all" ? divisions : divisions.filter((d) => d.id === bidFilter)).map((div) => {
+              {(bidFilter.length === 0 ? divisions : divisions.filter((d) => bidFilter.includes(d.id))).map((div) => {
                 const q = bidSearch.trim().toLowerCase();
                 const bMin = parseFloat(bidBudgetMin), bMax = parseFloat(bidBudgetMax);
                 const sMin = parseFloat(bidSpendMin), sMax = parseFloat(bidSpendMax);
                 const pMin = parseFloat(bidPctMin), pMax = parseFloat(bidPctMax);
                 const items = bidLineItems.filter((b) => {
                   if (b.divisionId !== div.id) return false;
-                  if (bidItemFilter !== "all" && b.name !== bidItemFilter) return false;
+                  if (bidItemFilter.length > 0 && !bidItemFilter.includes(b.name)) return false;
                   if (q && !(b.name || "").toLowerCase().includes(q) && !(b.coding || "").toLowerCase().includes(q)) return false;
                   const bd = b.budgetCents / 100, ac = b.actualCents / 100;
                   const pct = b.budgetCents > 0 ? (b.actualCents / b.budgetCents) * 100 : 0;
@@ -2703,6 +2642,13 @@ function DrawDetailView({ data, draw, drawLineItems, onBack }: {
                 const totalBudget = items.reduce((s, b) => s + b.budgetCents, 0);
                 const totalActual = items.reduce((s, b) => s + b.actualCents, 0);
                 const totalRemaining = totalBudget - totalActual;
+                // Division-level debit/credit totals
+                const totalDebit = showDebitCredit ? data.transactions
+                  .filter((t) => t.divisionId === div.id)
+                  .reduce((s, t) => s + t.amountCents, 0) : 0;
+                const totalCredit = showDebitCredit ? (data.receivedFunds ?? [])
+                  .filter((r) => r.divisionId === div.id)
+                  .reduce((s, r) => s + r.grossCents, 0) : 0;
                 return (
                   <div key={div.id} className="rounded-xl border border-neutral-200 bg-white overflow-hidden">
                     <div className="px-5 py-3 bg-neutral-50/60 border-b border-neutral-100 flex items-center justify-between flex-wrap gap-2">
@@ -2716,16 +2662,56 @@ function DrawDetailView({ data, draw, drawLineItems, onBack }: {
                         <span className={cn("font-semibold", totalRemaining < 0 ? "text-red-600" : "text-emerald-700")}>
                           {totalRemaining < 0 ? `(${formatCurrency(-totalRemaining)})` : formatCurrency(totalRemaining)} remaining
                         </span>
+                        {(() => {
+                          const debitSum = data.transactions.filter((t) => t.divisionId === div.id).reduce((s, t) => s + t.amountCents, 0);
+                          return <span className="text-neutral-500">Total Debit: <span className="font-semibold text-red-700">{formatCurrency(debitSum)}</span></span>;
+                        })()}
+                        {showDebitCredit && (() => {
+                          const creditSum = (data.receivedFunds ?? []).filter((r) => r.divisionId === div.id).reduce((s, r) => s + r.grossCents, 0);
+                          const debitSum = data.transactions.filter((t) => t.divisionId === div.id).reduce((s, t) => s + t.amountCents, 0);
+                          const diff = creditSum - debitSum;
+                          return (
+                            <>
+                              <span className="text-neutral-500">Total Credit: <span className="font-semibold text-emerald-700">{formatCurrency(creditSum)}</span></span>
+                              <span className="text-neutral-500">Diff: <span className={cn("font-semibold", diff < 0 ? "text-red-600" : "text-emerald-700")}>{formatCurrency(diff)}</span></span>
+                            </>
+                          );
+                        })()}
                       </div>
                     </div>
-                    <table className="bid-table w-full text-sm tabular">
+                    <table className="bid-table w-full text-sm tabular table-fixed">
+                      <colgroup>
+                        {showDebitCredit ? (
+                          <>
+                            <col style={{ width: "28%" }} />
+                            <col style={{ width: "10%" }} />
+                            <col style={{ width: "10%" }} />
+                            <col style={{ width: "10%" }} />
+                            <col style={{ width: "7%" }} />
+                            <col style={{ width: "12%" }} />
+                            <col style={{ width: "11%" }} />
+                            <col style={{ width: "12%" }} />
+                          </>
+                        ) : (
+                          <>
+                            <col style={{ width: "45%" }} />
+                            <col style={{ width: "14%" }} />
+                            <col style={{ width: "14%" }} />
+                            <col style={{ width: "14%" }} />
+                            <col style={{ width: "13%" }} />
+                          </>
+                        )}
+                      </colgroup>
                       <thead className="font-mono text-[10px] uppercase tracking-wider font-semibold text-neutral-500 bg-neutral-50/40">
                         <tr>
                           <th className="text-left py-2 pl-5 pr-3">Description</th>
                           <th className="text-right py-2 px-3">Budget</th>
                           <th className="text-right py-2 px-3">Total Spend</th>
                           <th className="text-right py-2 px-3">Remaining</th>
-                          <th className="text-right py-2 pl-3 pr-5">%</th>
+                          <th className={cn("text-right py-2", showDebitCredit ? "px-3" : "pl-3 pr-5")}>%</th>
+                          {showDebitCredit && <th className="text-center py-2 px-3 text-red-700 font-normal">Gross Amount</th>}
+                          {showDebitCredit && <th className="text-center py-2 px-3 text-red-700 font-normal">Retainage</th>}
+                          {showDebitCredit && <th className="text-center py-2 pl-3 pr-5 text-red-700 font-normal">Net Amount</th>}
                         </tr>
                       </thead>
                       <tbody>
@@ -2733,6 +2719,18 @@ function DrawDetailView({ data, draw, drawLineItems, onBack }: {
                           const pct = b.budgetCents > 0 ? (b.actualCents / b.budgetCents) * 100 : 0;
                           const rem = b.budgetCents - b.actualCents;
                           const over = rem < 0;
+                          let dG = 0, dR = 0, dN = 0;
+                          if (showDebitCredit) {
+                            const bliName = (b.name || "").trim().toLowerCase();
+                            const nameMatches = (s?: string | null) => !!s && s.toLowerCase().includes(bliName);
+                            const matched = data.transactions.filter((t) =>
+                              t.bidLineItemId === b.id ||
+                              (t.divisionId === b.divisionId && (nameMatches(t.description) || nameMatches(t.commentary) || nameMatches(t.counterparty)))
+                            );
+                            dG = matched.reduce((s, t) => s + t.amountCents, 0);
+                            dR = matched.reduce((s, t) => s + (t.retainageCents || 0), 0);
+                            dN = matched.reduce((s, t) => s + t.netCents, 0);
+                          }
                           return (
                             <tr key={b.id} className="border-t border-neutral-100 hover:bg-neutral-50/60">
                               <td className="py-2.5 pl-5 pr-3">
@@ -2747,16 +2745,71 @@ function DrawDetailView({ data, draw, drawLineItems, onBack }: {
                               <td className={cn("py-2.5 px-3 text-right font-semibold", over ? "text-red-600" : "text-emerald-700")}>
                                 {over ? `(${formatCurrency(-rem)})` : formatCurrency(rem)}
                               </td>
-                              <td className="py-2.5 pl-3 pr-5 text-right">
+                              <td className={cn("py-2.5 text-right", showDebitCredit ? "px-3" : "pl-3 pr-5")}>
                                 <Badge variant={pct > 150 ? "destructive" : pct > 105 ? "warning" : pct > 50 ? "default" : "secondary"} className="tabular">
                                   {pct.toFixed(0)}%
                                 </Badge>
                               </td>
+                              {showDebitCredit && <td className="py-2.5 px-3 text-right tabular text-neutral-900">{dG ? formatCurrency(dG) : "—"}</td>}
+                              {showDebitCredit && <td className="py-2.5 px-3 text-right tabular text-neutral-900">{dR ? formatCurrency(dR) : "—"}</td>}
+                              {showDebitCredit && <td className="py-2.5 pl-3 pr-5 text-right tabular text-neutral-900">{dN ? formatCurrency(dN) : "—"}</td>}
                             </tr>
                           );
                         })}
                       </tbody>
+                      <tfoot>
+                        {(() => {
+                          const divDebits = data.transactions.filter((t) => t.divisionId === div.id);
+                          const debG = divDebits.reduce((s, t) => s + t.amountCents, 0);
+                          const debR = divDebits.reduce((s, t) => s + (t.retainageCents || 0), 0);
+                          const debN = divDebits.reduce((s, t) => s + t.netCents, 0);
+                          const divCredits = (data.receivedFunds ?? []).filter((r) => r.divisionId === div.id);
+                          const credG = divCredits.reduce((s, r) => s + r.grossCents, 0);
+                          const credR = divCredits.reduce((s, r) => s + (r.retainageCents || 0), 0);
+                          const credN = divCredits.reduce((s, r) => s + r.netCents, 0);
+                          const diffG = credG - debG;
+                          const diffR = credR - debR;
+                          const diffN = credN - debN;
+                          return (
+                            <>
+                              <tr className="border-t-2 border-neutral-300 bg-neutral-100 font-bold">
+                                <td className="py-2 pl-5 pr-3 text-[10px] uppercase tracking-wider text-neutral-700">Total</td>
+                                <td className="py-2 px-3 text-right tabular text-neutral-900">{formatCurrency(totalBudget)}</td>
+                                <td className="py-2 px-3 text-right tabular text-neutral-900">{formatCurrency(totalActual)}</td>
+                                <td className={cn("py-2 px-3 text-right tabular", totalRemaining < 0 ? "text-red-600" : "text-emerald-700")}>{formatCurrency(totalRemaining)}</td>
+                                <td className={cn("py-2 text-right tabular text-neutral-700", showDebitCredit ? "px-3" : "pl-3 pr-5")}>
+                                  {totalBudget > 0 ? `${((totalActual / totalBudget) * 100).toFixed(0)}%` : "—"}
+                                </td>
+                                {showDebitCredit && (
+                                  <>
+                                    <td className="py-2 px-3 text-right tabular text-red-700">{formatCurrency(debG)}</td>
+                                    <td className="py-2 px-3 text-right tabular text-red-700">{debR ? formatCurrency(debR) : "—"}</td>
+                                    <td className="py-2 pl-3 pr-5 text-right tabular text-red-700">{formatCurrency(debN)}</td>
+                                  </>
+                                )}
+                              </tr>
+                              {showDebitCredit && (
+                                <>
+                                  <tr className="border-t border-neutral-200 bg-emerald-50/50">
+                                    <td colSpan={5} className="py-1.5 pl-5 pr-3 text-right text-[10px] uppercase tracking-wider text-emerald-800 font-bold">Total Credit →</td>
+                                    <td className="py-1.5 px-3 text-right tabular text-emerald-700 font-semibold">{formatCurrency(credG)}</td>
+                                    <td className="py-1.5 px-3 text-right tabular text-emerald-700 font-semibold">{credR ? formatCurrency(credR) : "—"}</td>
+                                    <td className="py-1.5 pl-3 pr-5 text-right tabular text-emerald-700 font-semibold">{formatCurrency(credN)}</td>
+                                  </tr>
+                                  <tr className="border-t border-neutral-300 bg-amber-50/70 font-bold">
+                                    <td colSpan={5} className="py-1.5 pl-5 pr-3 text-right text-[10px] uppercase tracking-wider text-amber-800">Difference →</td>
+                                    <td className={cn("py-1.5 px-3 text-right tabular", diffG < 0 ? "text-red-600" : "text-emerald-700")}>{formatCurrency(diffG)}</td>
+                                    <td className={cn("py-1.5 px-3 text-right tabular", diffR < 0 ? "text-red-600" : "text-emerald-700")}>{formatCurrency(diffR)}</td>
+                                    <td className={cn("py-1.5 pl-3 pr-5 text-right tabular", diffN < 0 ? "text-red-600" : "text-emerald-700")}>{formatCurrency(diffN)}</td>
+                                  </tr>
+                                </>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </tfoot>
                     </table>
+
                   </div>
                 );
               })}
@@ -2777,11 +2830,11 @@ export function TransactionsTab({ data }: { data: ProjectPageData }) {
   const { project, divisions, transactions, draws } = data;
   const { role } = useRole();
   const [query, setQuery] = React.useState("");
-  const [filterDivision, setFilterDivision] = React.useState<string>("all");
-  const [filterDraw, setFilterDraw] = React.useState<string>("all");
-  const [filterStatus, setFilterStatus] = React.useState<string>("all");
-  const [filterType, setFilterType] = React.useState<string>("all");
-  const [filterVendor, setFilterVendor] = React.useState<string>("all");
+  const [filterDivision, setFilterDivision] = React.useState<string[]>([]);
+  const [filterDraw, setFilterDraw] = React.useState<string[]>([]);
+  const [filterStatus, setFilterStatus] = React.useState<string[]>([]);
+  const [filterType, setFilterType] = React.useState<string[]>([]);
+  const [filterVendor, setFilterVendor] = React.useState<string[]>([]);
   const [dateFrom, setDateFrom] = React.useState("");
   const [dateTo, setDateTo] = React.useState("");
 
@@ -2808,11 +2861,11 @@ export function TransactionsTab({ data }: { data: ProjectPageData }) {
   const q = query.toLowerCase();
   const filtered = transactions.filter((t) => {
     if (q && !t.vendor.toLowerCase().includes(q) && !t.description.toLowerCase().includes(q) && !(t.counterparty ?? "").toLowerCase().includes(q)) return false;
-    if (filterDivision !== "all" && t.divisionId !== filterDivision) return false;
-    if (filterDraw !== "all" && String(t.drawNumber ?? "") !== filterDraw) return false;
-    if (filterStatus !== "all" && t.paymentStatus !== filterStatus) return false;
-    if (filterType !== "all" && t.type !== filterType) return false;
-    if (filterVendor !== "all" && t.vendor !== filterVendor) return false;
+    if (filterDivision.length && !filterDivision.includes(t.divisionId)) return false;
+    if (filterDraw.length && !filterDraw.includes(String(t.drawNumber ?? ""))) return false;
+    if (filterStatus.length && !filterStatus.includes(t.paymentStatus)) return false;
+    if (filterType.length && !filterType.includes(t.type)) return false;
+    if (filterVendor.length && !filterVendor.includes(t.vendor)) return false;
     if (dateFrom && (t.date ?? "") < dateFrom) return false;
     if (dateTo && (t.date ?? "") > dateTo) return false;
     return true;
@@ -2826,9 +2879,9 @@ export function TransactionsTab({ data }: { data: ProjectPageData }) {
   const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   function resetFilters() {
-    setQuery(""); setFilterDivision("all"); setFilterDraw("all"); setFilterStatus("all"); setFilterType("all"); setFilterVendor("all"); setDateFrom(""); setDateTo("");
+    setQuery(""); setFilterDivision([]); setFilterDraw([]); setFilterStatus([]); setFilterType([]); setFilterVendor([]); setDateFrom(""); setDateTo("");
   }
-  const hasFilters = query || filterDivision !== "all" || filterDraw !== "all" || filterStatus !== "all" || filterType !== "all" || filterVendor !== "all" || dateFrom || dateTo;
+  const hasFilters = !!query || filterDivision.length > 0 || filterDraw.length > 0 || filterStatus.length > 0 || filterType.length > 0 || filterVendor.length > 0 || !!dateFrom || !!dateTo;
 
   function handleCreate() {
     startTransition(async () => {
@@ -2873,47 +2926,11 @@ export function TransactionsTab({ data }: { data: ProjectPageData }) {
 
       <div className="mt-4 rounded-xl border border-neutral-200 bg-white p-3">
         <div className="flex flex-wrap items-end gap-2">
-          <div className="flex flex-col">
-            <label className="text-[10px] uppercase tracking-wider font-semibold text-neutral-500 mb-1">Division</label>
-            <select value={filterDivision} onChange={(e) => setFilterDivision(e.target.value)} className="text-xs border border-neutral-300 rounded-md px-2 py-1.5 bg-white min-w-[140px]">
-              <option value="all">All</option>
-              {divisions.map((d) => <option key={d.id} value={d.id}>{d.number}. {d.name}</option>)}
-            </select>
-          </div>
-          <div className="flex flex-col">
-            <label className="text-[10px] uppercase tracking-wider font-semibold text-neutral-500 mb-1">Draw</label>
-            <select value={filterDraw} onChange={(e) => setFilterDraw(e.target.value)} className="text-xs border border-neutral-300 rounded-md px-2 py-1.5 bg-white">
-              <option value="all">All</option>
-              {draws.map((d) => <option key={d.id} value={String(d.number)}>Draw {d.number}</option>)}
-            </select>
-          </div>
-          <div className="flex flex-col">
-            <label className="text-[10px] uppercase tracking-wider font-semibold text-neutral-500 mb-1">Type</label>
-            <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="text-xs border border-neutral-300 rounded-md px-2 py-1.5 bg-white">
-              <option value="all">All</option>
-              <option value="invoice">Invoice</option>
-              <option value="payroll">Payroll</option>
-              <option value="expense">Expense</option>
-              <option value="change_order_cost">Change order</option>
-              <option value="credit">Credit</option>
-            </select>
-          </div>
-          <div className="flex flex-col">
-            <label className="text-[10px] uppercase tracking-wider font-semibold text-neutral-500 mb-1">Status</label>
-            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="text-xs border border-neutral-300 rounded-md px-2 py-1.5 bg-white">
-              <option value="all">All</option>
-              <option value="pending">Pending</option>
-              <option value="paid">Paid</option>
-              <option value="voided">Voided</option>
-            </select>
-          </div>
-          <div className="flex flex-col">
-            <label className="text-[10px] uppercase tracking-wider font-semibold text-neutral-500 mb-1">Vendor</label>
-            <select value={filterVendor} onChange={(e) => setFilterVendor(e.target.value)} className="text-xs border border-neutral-300 rounded-md px-2 py-1.5 bg-white max-w-[200px]">
-              <option value="all">All ({vendorOptions.length})</option>
-              {vendorOptions.map((v) => <option key={v} value={v}>{v}</option>)}
-            </select>
-          </div>
+          <MultiSelect label="Division" options={divisions.map((d) => d.id)} selected={filterDivision} onChange={setFilterDivision} />
+          <MultiSelect label="Draw" options={draws.map((d) => String(d.number))} selected={filterDraw} onChange={setFilterDraw} />
+          <MultiSelect label="Type" options={["invoice", "payroll", "expense", "change_order_cost", "credit"]} selected={filterType} onChange={setFilterType} />
+          <MultiSelect label="Status" options={["pending", "paid", "voided"]} selected={filterStatus} onChange={setFilterStatus} />
+          <MultiSelect label={`Vendor (${vendorOptions.length})`} options={vendorOptions} selected={filterVendor} onChange={setFilterVendor} />
           <div className="flex flex-col">
             <label className="text-[10px] uppercase tracking-wider font-semibold text-neutral-500 mb-1">Date from</label>
             <Input type="date" className="h-8 text-xs" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
@@ -3045,10 +3062,10 @@ export function ChangeOrdersTab({ data }: { data: ProjectPageData }) {
   const [showNew, setShowNew] = React.useState(false);
   const [form, setForm] = React.useState({ description: "", date: "", amountDollars: "" });
   const [search, setSearch] = React.useState("");
-  const [fStatus, setFStatus] = React.useState("all");
-  const [fCoNum, setFCoNum] = React.useState("all");
-  const [fDesc, setFDesc] = React.useState("all");
-  const [fDate, setFDate] = React.useState("all");
+  const [fStatus, setFStatus] = React.useState<string[]>([]);
+  const [fCoNum, setFCoNum] = React.useState<string[]>([]);
+  const [fDesc, setFDesc] = React.useState<string[]>([]);
+  const [fDate, setFDate] = React.useState<string[]>([]);
   const [fAmtMin, setFAmtMin] = React.useState("");
   const [fAmtMax, setFAmtMax] = React.useState("");
 
@@ -3061,10 +3078,10 @@ export function ChangeOrdersTab({ data }: { data: ProjectPageData }) {
     const amtMin = parseFloat(fAmtMin);
     const amtMax = parseFloat(fAmtMax);
     return changeOrders.filter((c) => {
-      if (fStatus !== "all" && c.status !== fStatus) return false;
-      if (fCoNum !== "all" && String(c.number) !== fCoNum) return false;
-      if (fDesc !== "all" && c.description !== fDesc) return false;
-      if (fDate !== "all" && c.date !== fDate) return false;
+      if (fStatus.length && !fStatus.includes(c.status)) return false;
+      if (fCoNum.length && !fCoNum.includes(String(c.number))) return false;
+      if (fDesc.length && !fDesc.includes(c.description || "")) return false;
+      if (fDate.length && !fDate.includes(c.date || "")) return false;
       const amtDollars = c.amountCents / 100;
       if (Number.isFinite(amtMin) && amtDollars < amtMin) return false;
       if (Number.isFinite(amtMax) && amtDollars > amtMax) return false;
@@ -3072,7 +3089,7 @@ export function ChangeOrdersTab({ data }: { data: ProjectPageData }) {
       return true;
     });
   }, [changeOrders, search, fStatus, fCoNum, fDesc, fDate, fAmtMin, fAmtMax]);
-  const hasFilters = search || fStatus !== "all" || fCoNum !== "all" || fDesc !== "all" || fDate !== "all" || fAmtMin || fAmtMax;
+  const hasFilters = !!search || fStatus.length > 0 || fCoNum.length > 0 || fDesc.length > 0 || fDate.length > 0 || !!fAmtMin || !!fAmtMax;
 
   const pendingTotal = changeOrders.filter((c) => c.status === "pending").reduce((s, c) => s + c.amountCents, 0);
   const approvedTotal = changeOrders.filter((c) => c.status === "approved").reduce((s, c) => s + c.amountCents, 0);
@@ -3152,40 +3169,10 @@ export function ChangeOrdersTab({ data }: { data: ProjectPageData }) {
           placeholder="Search # or description…"
           className="h-7 text-xs w-64"
         />
-        <select
-          value={fCoNum}
-          onChange={(e) => setFCoNum(e.target.value)}
-          className="text-[10px] border border-neutral-300 rounded-md px-1.5 py-1 bg-white text-neutral-900 focus:outline-none focus:ring-1 focus:ring-boulder-400"
-        >
-          <option value="all">CO #</option>
-          {coNums.map((n) => <option key={n} value={n}>#{n}</option>)}
-        </select>
-        <select
-          value={fDate}
-          onChange={(e) => setFDate(e.target.value)}
-          className="text-[10px] border border-neutral-300 rounded-md px-1.5 py-1 bg-white text-neutral-900 focus:outline-none focus:ring-1 focus:ring-boulder-400"
-        >
-          <option value="all">Date</option>
-          {coDates.map((d) => <option key={d} value={d}>{d}</option>)}
-        </select>
-        <select
-          value={fDesc}
-          onChange={(e) => setFDesc(e.target.value)}
-          className="text-[10px] border border-neutral-300 rounded-md px-1.5 py-1 bg-white text-neutral-900 focus:outline-none focus:ring-1 focus:ring-boulder-400 max-w-[160px]"
-        >
-          <option value="all">Description</option>
-          {coDescs.map((d) => <option key={d} value={d}>{d}</option>)}
-        </select>
-        <select
-          value={fStatus}
-          onChange={(e) => setFStatus(e.target.value)}
-          className="text-[10px] border border-neutral-300 rounded-md px-1.5 py-1 bg-white text-neutral-900 focus:outline-none focus:ring-1 focus:ring-boulder-400"
-        >
-          <option value="all">Status</option>
-          <option value="pending">Pending</option>
-          <option value="approved">Approved</option>
-          <option value="rejected">Rejected</option>
-        </select>
+        <MultiSelect label="CO #" options={coNums} selected={fCoNum} onChange={setFCoNum} />
+        <MultiSelect label="Date" options={coDates} selected={fDate} onChange={setFDate} />
+        <MultiSelect label="Description" options={coDescs} selected={fDesc} onChange={setFDesc} />
+        <MultiSelect label="Status" options={["pending", "approved", "rejected"]} selected={fStatus} onChange={setFStatus} />
         <Input
           value={fAmtMin}
           onChange={(e) => setFAmtMin(e.target.value)}
@@ -3200,7 +3187,7 @@ export function ChangeOrdersTab({ data }: { data: ProjectPageData }) {
         />
         {hasFilters && (
           <button
-            onClick={() => { setSearch(""); setFStatus("all"); setFCoNum("all"); setFDesc("all"); setFDate("all"); setFAmtMin(""); setFAmtMax(""); }}
+            onClick={() => { setSearch(""); setFStatus([]); setFCoNum([]); setFDesc([]); setFDate([]); setFAmtMin(""); setFAmtMax(""); }}
             className="text-[10px] font-semibold text-boulder-600 hover:text-boulder-800 uppercase tracking-wider"
           >
             Clear
@@ -3337,30 +3324,58 @@ export function SettingsTab({ data }: { data: ProjectPageData }) {
   const [name, setName] = React.useState(project.name);
   const [address, setAddress] = React.useState(project.address);
   const [contractDate, setContractDate] = React.useState(project.contractDate);
-  const [compact, setCompact] = React.useState(false);
-  const [fontSize, setFontSize] = React.useState(14);
+  const PAGES = ["overview", "cfr", "draws", "transactions", "change-orders", "backup", "team", "settings"];
+  const [pagesFor, setPagesFor] = React.useState<string[]>(["settings"]);
+  const [compact, setCompact] = React.useState(true);
+  const [fontSize, setFontSize] = React.useState(10);
 
   React.useEffect(() => {
-    const saved = typeof window !== "undefined" && localStorage.getItem("boulder-compact") === "1";
-    setCompact(saved);
-    document.documentElement.classList.toggle("compact", saved);
-    const savedSize = typeof window !== "undefined" ? Number(localStorage.getItem("boulder-font-size")) : 0;
-    if (savedSize >= 10 && savedSize <= 20) {
-      setFontSize(savedSize);
-      document.documentElement.style.fontSize = `${savedSize}px`;
+    if (typeof window === "undefined") return;
+    const primary = pagesFor[0] || "settings";
+    const key = `projects-${primary}`;
+    const savedCompact = localStorage.getItem(`boulder-compact-${key}`);
+    setCompact(savedCompact === null ? true : savedCompact === "1");
+    const savedSize = Number(localStorage.getItem(`boulder-font-size-${key}`));
+    setFontSize(savedSize >= 8 && savedSize <= 20 ? savedSize : 10);
+  }, [pagesFor]);
+
+  function reapplyIfCurrent() {
+    if (typeof window === "undefined") return;
+    const path = window.location.pathname;
+    if (pagesFor.some((p) => path.includes(`/${p}`))) {
+      document.documentElement.classList.toggle("compact", compact);
+      document.documentElement.style.fontSize = `${fontSize}px`;
     }
-  }, []);
+  }
 
   function toggleCompact(next: boolean) {
     setCompact(next);
-    localStorage.setItem("boulder-compact", next ? "1" : "0");
-    document.documentElement.classList.toggle("compact", next);
+    const targets = pagesFor.length ? pagesFor : PAGES;
+    for (const p of targets) {
+      localStorage.setItem(`boulder-compact-projects-${p}`, next ? "1" : "0");
+    }
+    if (typeof window !== "undefined" && targets.some((p) => window.location.pathname.includes(`/${p}`))) {
+      document.documentElement.classList.toggle("compact", next);
+    }
   }
 
   function changeFontSize(size: number) {
     setFontSize(size);
-    localStorage.setItem("boulder-font-size", String(size));
-    document.documentElement.style.fontSize = `${size}px`;
+    const targets = pagesFor.length ? pagesFor : PAGES;
+    for (const p of targets) {
+      localStorage.setItem(`boulder-font-size-projects-${p}`, String(size));
+    }
+    if (typeof window !== "undefined" && targets.some((p) => window.location.pathname.includes(`/${p}`))) {
+      document.documentElement.style.fontSize = `${size}px`;
+    }
+  }
+
+  function applyToAll() {
+    for (const p of PAGES) {
+      localStorage.setItem(`boulder-compact-projects-${p}`, compact ? "1" : "0");
+      localStorage.setItem(`boulder-font-size-projects-${p}`, String(fontSize));
+    }
+    reapplyIfCurrent();
   }
 
   const owner = organizations.find((o) => o.id === project.ownerOrgId);
@@ -3449,11 +3464,20 @@ export function SettingsTab({ data }: { data: ProjectPageData }) {
 
         <div className="rounded-xl border border-neutral-200 bg-white p-6">
           <h2 className="font-display font-bold text-base text-neutral-950">Display</h2>
+          <p className="mt-1 text-xs text-neutral-500">Configure compact view and font size per page. Default font size is 10px.</p>
+          <div className="mt-4 flex items-center justify-between gap-4 pb-4 border-b border-neutral-100">
+            <div>
+              <div className="text-sm font-medium text-neutral-900">Configure for page</div>
+              <p className="mt-0.5 text-xs text-neutral-500">Each project section can have its own settings.</p>
+            </div>
+            <MultiSelect label="Pages" options={PAGES} selected={pagesFor} onChange={setPagesFor} />
+
+          </div>
           <div className="mt-5 space-y-5">
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0">
                 <div className="text-sm font-medium text-neutral-900">Compact view</div>
-                <p className="mt-0.5 text-xs text-neutral-500">Reduces padding and font sizes across the UI for denser data tables.</p>
+                <p className="mt-0.5 text-xs text-neutral-500">Reduces padding and font sizes for {pagesFor.length ? pagesFor.join(", ") : "all"} page(s).</p>
               </div>
               <button
                 type="button"
@@ -3482,10 +3506,10 @@ export function SettingsTab({ data }: { data: ProjectPageData }) {
                 <span className="text-sm font-semibold tabular text-boulder-600 w-10 text-right">{fontSize}px</span>
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-[10px] text-neutral-400 shrink-0">10px</span>
+                <span className="text-[10px] text-neutral-400 shrink-0">8px</span>
                 <input
                   type="range"
-                  min={10}
+                  min={8}
                   max={20}
                   step={1}
                   value={fontSize}
@@ -3495,10 +3519,17 @@ export function SettingsTab({ data }: { data: ProjectPageData }) {
                 <span className="text-[10px] text-neutral-400 shrink-0">20px</span>
               </div>
               <div className="flex justify-between mt-1 px-7">
-                {[10,11,12,13,14,15,16,17,18,19,20].map(s => (
+                {[8,9,10,11,12,13,14,15,16,17,18,19,20].map(s => (
                   <button key={s} onClick={() => changeFontSize(s)} className={cn("text-[9px] tabular transition-colors", fontSize === s ? "text-boulder-600 font-bold" : "text-neutral-300 hover:text-neutral-500")}>{s}</button>
                 ))}
               </div>
+            </div>
+            <div className="border-t border-neutral-100 pt-4 flex items-center justify-between">
+              <div>
+                <div className="text-sm font-medium text-neutral-900">Apply to all pages</div>
+                <p className="mt-0.5 text-xs text-neutral-500">Copy current settings to every project page.</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={applyToAll}>Apply to all</Button>
             </div>
           </div>
         </div>

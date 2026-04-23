@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>G702 / G703 — AIA Pay Application</title>
+<style>
+  :root {
+    --border: #171717;
+    --border-soft: #d4d4d4;
+    --ink: #171717;
+    --muted: #737373;
+    --bg-hover: #fafafa;
+    --bg-soft: #f5f5f5;
+    --bg-yellow: #fef9c3;
+    --bg-stripe: #e5e5e5;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Times New Roman", Times, serif;
+    margin: 0; padding: 24px;
+    background: #f4f4f5;
+    color: var(--ink);
+    font-size: 13px;
+  }
+  .page {
+    max-width: 1472px;
+    margin: 0 auto 24px;
+    background: #fff;
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .title-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 12px 20px;
+    border-bottom: 2px solid var(--border);
+  }
+  .title-bar .title {
+    font-weight: bold;
+    font-size: 15px;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+  .title-bar .doc {
+    font-style: italic;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .mono-label {
+    font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    font-weight: bold;
+    font-size: 11px;
+    text-transform: uppercase;
+  }
+  /* ── G702 Header info block ───────────────────────── */
+  .g702-info {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    border-bottom: 2px solid var(--border);
+  }
+  .g702-info > div {
+    padding: 12px;
+    border-right: 1px solid var(--border-soft);
+  }
+  .g702-info > div:last-child { border-right: none; }
+  .g702-info .row2 { border-top: 1px solid var(--border-soft); }
+  .col-4 { grid-column: span 4; }
+  .col-3 { grid-column: span 3; }
+  .col-2 { grid-column: span 2; }
+  .col-6 { grid-column: span 6; }
+  .col-12 { grid-column: span 12; }
+  .info-line { display: flex; justify-content: space-between; }
+  .info-line + .info-line { margin-top: 4px; }
+  .small { font-size: 11px; color: #404040; }
+
+  /* ── G702 body ───────────────────────── */
+  .g702-body { display: grid; grid-template-columns: 7fr 5fr; }
+  .g702-body > div { padding: 16px; }
+  .g702-body > div:first-child { border-right: 2px solid var(--border); }
+  .section-title {
+    font-weight: bold;
+    text-transform: uppercase;
+    font-size: 14px;
+    margin-bottom: 4px;
+  }
+  .blurb {
+    font-size: 11px;
+    color: #404040;
+    line-height: 1.4;
+    margin-bottom: 12px;
+  }
+  table.lines { width: 100%; font-size: 12px; border-collapse: collapse; }
+  table.lines td {
+    padding: 2px 8px 2px 0;
+    vertical-align: top;
+  }
+  table.lines td.num { width: 28px; }
+  table.lines td.amt {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  table.lines tr.highlight { background: var(--bg-yellow); }
+  table.lines td.bold, table.lines tr.bold td { font-weight: bold; }
+  table.lines td.sub { padding-left: 20px; }
+  table.lines td.caption { font-size: 10px; color: var(--muted); }
+  table.lines td.underline { border-bottom: 1px solid #9ca3af; }
+  .dollar-sign { margin-right: 8px; color: var(--muted); }
+
+  /* Change order summary */
+  table.co-summary {
+    width: 100%;
+    font-size: 11px;
+    margin-top: 20px;
+    border: 1px solid var(--border);
+    border-collapse: collapse;
+  }
+  table.co-summary th,
+  table.co-summary td {
+    padding: 4px 8px;
+    border: 1px solid var(--border-soft);
+  }
+  table.co-summary th {
+    background: var(--bg-soft);
+    text-transform: uppercase;
+    font-weight: bold;
+    border-bottom: 1px solid var(--border);
+  }
+  table.co-summary td.amt {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  table.co-summary tr.totals { font-weight: bold; border-bottom: 2px solid var(--border); }
+
+  /* Right column — certs */
+  .cert-block { font-size: 11px; color: #404040; line-height: 1.4; }
+  .cert-fields { margin-top: 24px; font-size: 11px; }
+  .cert-fields .row { margin-bottom: 16px; }
+  .cert-fields .row.flex { display: flex; gap: 16px; }
+  .fill {
+    display: inline-block;
+    border-bottom: 1px solid #9ca3af;
+    margin-left: 4px;
+  }
+  .fill.w40 { width: 160px; }
+  .fill.w32 { width: 128px; }
+  .fill.w24 { width: 96px; }
+  .fill.w16 { width: 64px; }
+  .arch-block {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 2px solid var(--border);
+  }
+  .amt-certified {
+    margin-top: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .amt-certified .label {
+    font-weight: bold;
+    font-size: 11px;
+    text-transform: uppercase;
+  }
+  .amt-certified .line {
+    flex: 1;
+    border-bottom: 1px solid #9ca3af;
+    text-align: right;
+    padding-right: 8px;
+    font-variant-numeric: tabular-nums;
+    font-weight: bold;
+  }
+
+  /* Footer */
+  .aia-footer {
+    padding: 8px 12px;
+    font-size: 9px;
+    color: var(--muted);
+    background: var(--bg-soft);
+    border-top: 2px solid var(--border);
+  }
+
+  /* ── G703 ───────────────────────── */
+  .g703-info {
+    display: grid;
+    grid-template-columns: 7fr 5fr;
+    border-bottom: 2px solid var(--border);
+    font-size: 11px;
+  }
+  .g703-info > div {
+    padding: 12px;
+  }
+  .g703-info > div:first-child {
+    border-right: 1px solid var(--border-soft);
+    line-height: 1.4;
+  }
+  table.g703 {
+    width: 100%;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    border-collapse: collapse;
+  }
+  table.g703 th, table.g703 td {
+    padding: 4px;
+    border: 1px solid var(--border-soft);
+  }
+  table.g703 thead tr:first-child {
+    background: #f5f5f5;
+    border-bottom: 1px solid #171717;
+  }
+  table.g703 thead tr:first-child th {
+    border-right: 1px solid #171717;
+    padding: 4px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+  table.g703 thead tr.labels {
+    background: #fafafa;
+    border-bottom: 2px solid #171717;
+    vertical-align: top;
+    font-size: 10px;
+    text-transform: uppercase;
+  }
+  table.g703 thead tr.labels th {
+    border-right: 1px solid #171717;
+    padding: 4px;
+  }
+  table.g703 thead .letter { font-weight: bold; font-size: 12px; }
+  table.g703 thead .name { font-weight: normal; margin-top: 2px; }
+  table.g703 thead .bracket { font-weight: normal; color: var(--muted); }
+  table.g703 td.num { text-align: right; }
+  table.g703 td.center { text-align: center; }
+  table.g703 td.bold { font-weight: bold; }
+  table.g703 td.uppercase { text-transform: uppercase; font-weight: 500; }
+  table.g703 tfoot tr {
+    border-top: 2px solid var(--border);
+    background: var(--bg-soft);
+    font-weight: bold;
+  }
+  table.g703 tfoot td { padding: 8px 4px; }
+  .g703-footer {
+    padding: 8px 12px;
+    font-size: 9px;
+    color: var(--muted);
+    background: var(--bg-soft);
+    border-top: 2px solid var(--border);
+    text-align: center;
+    font-style: italic;
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- G702 — APPLICATION AND CERTIFICATION FOR PAYMENT                -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="page">
+  <div class="title-bar">
+    <div class="title">Application and Certification for Payment</div>
+    <div class="doc">AIA Document G702</div>
+  </div>
+
+  <!-- Header info -->
+  <div class="g702-info">
+    <div class="col-4">
+      <div class="mono-label">To Owner:</div>
+      <div style="margin-top:4px;">[Owner Name]</div>
+      <div class="small">[Owner Address]</div>
+    </div>
+    <div class="col-3">
+      <div class="mono-label">Project:</div>
+      <div style="margin-top:4px;">[Project Name]</div>
+      <div class="small">[Project Address]</div>
+    </div>
+    <div class="col-3">
+      <div class="info-line"><span class="mono-label">Application No:</span><span>[N]</span></div>
+      <div class="info-line"><span class="mono-label">Period To:</span><span>[MM/DD/YYYY]</span></div>
+      <div class="info-line"><span class="mono-label">Contract Date:</span><span>[Month DD, YYYY]</span></div>
+    </div>
+    <div class="col-2">
+      <div class="mono-label">Distribution to:</div>
+      <div class="small" style="margin-top:4px;">
+        <div><span style="display:inline-block; width:16px;">X</span>Owner</div>
+        <div><span style="display:inline-block; width:16px;">&nbsp;</span>Architect</div>
+        <div><span style="display:inline-block; width:16px;">&nbsp;</span>Contractor</div>
+      </div>
+    </div>
+    <div class="col-6 row2">
+      <div class="mono-label">From Contractor:</div>
+      <div style="margin-top:4px;">[Contractor Name]</div>
+      <div class="small">[Contractor Address]</div>
+    </div>
+    <div class="col-6 row2">
+      <div class="mono-label">Via Architect:</div>
+      <div style="margin-top:4px;">[Architect Name]</div>
+      <div class="small">[Architect Address]</div>
+    </div>
+    <div class="col-12 row2">
+      <span class="mono-label">Contract For:</span>
+      <span style="margin-left:8px;">[Project Number]</span>
+    </div>
+  </div>
+
+  <!-- Body -->
+  <div class="g702-body">
+    <!-- Left: application lines -->
+    <div>
+      <div class="section-title">Contractor&#39;s Application for Payment</div>
+      <div class="blurb">
+        Application is made for payment, as shown below, in connection with the Contract.<br>
+        Continuation Sheet, AIA Document G703, is attached.
+      </div>
+      <table class="lines">
+        <tbody>
+          <tr>
+            <td class="num">1.</td>
+            <td>Original Contract Sum</td>
+            <td class="amt underline">$0.00</td>
+          </tr>
+          <tr>
+            <td class="num">2.</td>
+            <td>Net change by Change Orders</td>
+            <td class="amt underline">$0.00</td>
+          </tr>
+          <tr class="bold">
+            <td class="num">3.</td>
+            <td>Contract Sum to Date (Line 1 ± 2)</td>
+            <td class="amt underline">$0.00</td>
+          </tr>
+          <tr class="bold">
+            <td class="num">4.</td>
+            <td>Total Completed &amp; Stored to Date (Column G on G703)</td>
+            <td class="amt underline">$0.00</td>
+          </tr>
+          <tr>
+            <td class="num">5.</td>
+            <td class="bold">Retainage:</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td></td>
+            <td class="sub">a. ___% of Completed Work</td>
+            <td class="amt"><span class="dollar-sign">$</span></td>
+          </tr>
+          <tr>
+            <td></td>
+            <td class="sub caption">(Column D + E on G703)</td>
+            <td class="amt"></td>
+          </tr>
+          <tr>
+            <td></td>
+            <td class="sub">b. ___% of Stored Material</td>
+            <td class="amt"><span class="dollar-sign">$</span></td>
+          </tr>
+          <tr>
+            <td></td>
+            <td class="sub caption">(Column F on G703)</td>
+            <td class="amt"></td>
+          </tr>
+          <tr>
+            <td></td>
+            <td class="sub">Total Retainage (Lines 5a + 5b or</td>
+            <td class="amt"></td>
+          </tr>
+          <tr>
+            <td></td>
+            <td class="sub">Total in Column I of G703)</td>
+            <td class="amt underline"><span class="dollar-sign">$</span>0.00</td>
+          </tr>
+          <tr>
+            <td class="num">6.</td>
+            <td>Total Earned Less Retainage (Line 4 Less Line 5 Total)</td>
+            <td class="amt underline"><span class="dollar-sign">$</span>0.00</td>
+          </tr>
+          <tr>
+            <td class="num">7.</td>
+            <td>Less Previous Certificates for Payment (Line 6 from prior Certificate)</td>
+            <td class="amt underline"><span class="dollar-sign">$</span>0.00</td>
+          </tr>
+          <tr class="highlight bold">
+            <td class="num">8.</td>
+            <td>Current Payment Due</td>
+            <td class="amt underline"><span class="dollar-sign">$</span>0.00</td>
+          </tr>
+          <tr>
+            <td class="num">9.</td>
+            <td>Balance to Finish, Including Retainage (Line 3 less Line 6)</td>
+            <td class="amt underline"><span class="dollar-sign">$</span>0.00</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Change Order Summary -->
+      <table class="co-summary">
+        <thead>
+          <tr>
+            <th style="text-align:left;">Change Order Summary</th>
+            <th style="text-align:right;">Additions</th>
+            <th style="text-align:right;">Deductions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Total changes approved<br>in previous months by Owner</td>
+            <td class="amt">$0.00</td>
+            <td class="amt">$0.00</td>
+          </tr>
+          <tr>
+            <td>Total approved this Month</td>
+            <td class="amt">$0.00</td>
+            <td class="amt">$0.00</td>
+          </tr>
+          <tr class="totals">
+            <td>Totals</td>
+            <td class="amt">$0.00</td>
+            <td class="amt">$0.00</td>
+          </tr>
+          <tr>
+            <td style="font-weight:600;">Net Changes by Change Order</td>
+            <td colspan="2" class="amt" style="font-weight:bold;">$0.00</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Right: Contractor cert + Architect cert -->
+    <div>
+      <div class="cert-block">
+        The undersigned Contractor certifies that to the best of the Contractor&#39;s knowledge,
+        information and belief the Work covered by this Application for Payment has been
+        completed in accordance with the Contract Documents, that all amounts have been paid by
+        the Contractor for Work for which previous Certificates for Payment were issued and
+        payments received from the Owner, and that current payment shown herein is now due.
+      </div>
+      <div class="cert-fields">
+        <div class="row">Contractor:</div>
+        <div class="row flex">
+          <span>By: <span class="fill w40"></span></span>
+          <span>Date: <span class="fill w32"></span></span>
+        </div>
+        <div class="row flex" style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+          <div>State of:</div>
+          <div>County of:</div>
+        </div>
+        <div class="row">
+          Subscribed and sworn to before me this <span class="fill w16"></span> day of <span class="fill w24"></span>
+        </div>
+        <div class="row">Notary Public: <span class="fill w40"></span></div>
+        <div class="row">My Commission expires: <span class="fill w32"></span></div>
+      </div>
+
+      <!-- Architect -->
+      <div class="arch-block">
+        <div class="section-title">Architect&#39;s Certificate for Payment</div>
+        <div class="cert-block">
+          In accordance with the Contract Documents, based on on-site observations and the data
+          comprising the application, the Architect certifies to the Owner that to the best of the
+          Architect&#39;s knowledge, information and belief the Work has progressed as indicated,
+          the quality of the Work is in accordance with the Contract Documents, and the Contractor
+          is entitled to payment of the AMOUNT CERTIFIED.
+        </div>
+        <div class="amt-certified">
+          <span class="label">Amount Certified</span>
+          <span class="line">$ 0.00</span>
+        </div>
+        <div style="margin-top:12px; font-size:10px; font-style:italic; color:#525252; line-height:1.4;">
+          (Attach explanation if amount certified differs from the amount applied. Initial all figures on this
+          Application and the Continuation Sheet that are changed to conform with the amount certified.)
+        </div>
+        <div class="cert-fields">
+          <div class="row">Architect:</div>
+          <div class="row flex">
+            <span>By: <span class="fill w40"></span></span>
+            <span>Date: <span class="fill w32"></span></span>
+          </div>
+        </div>
+        <div style="margin-top:12px; font-size:10px; color:#525252; line-height:1.4;">
+          This Certificate is not negotiable. The AMOUNT CERTIFIED is payable only to the
+          Contractor named herein. Issuance, payment and acceptance of payment are without
+          prejudice to any rights of the Owner or Contractor under this Contract.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="aia-footer">
+    AIA DOCUMENT G702 · APPLICATION AND CERTIFICATION FOR PAYMENT · 1992 EDITION · AIA® · © 1992 · THE AMERICAN INSTITUTE OF ARCHITECTS, 1735 NEW YORK AVE, N.W., WASHINGTON, DC 20006-5292
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- G703 — CONTINUATION SHEET                                        -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<section class="page">
+  <div class="title-bar">
+    <div class="title" style="font-size:14px;">Continuation Sheet</div>
+    <div class="doc" style="font-size:11px;">AIA Document G703</div>
+  </div>
+
+  <div class="g703-info">
+    <div>
+      <div>AIA Document G702, APPLICATION AND CERTIFICATION FOR PAYMENT, containing</div>
+      <div>Contractor&#39;s signed certification is attached.</div>
+      <div>In tabulations below, amounts are stated to the nearest dollar.</div>
+      <div>Use Column I on Contracts where variable retainage for line items may apply.</div>
+    </div>
+    <div>
+      <div class="info-line"><span class="mono-label">Application No:</span><span>[N]</span></div>
+      <div class="info-line"><span class="mono-label">Application Date:</span><span>[MM/DD/YYYY]</span></div>
+      <div class="info-line"><span class="mono-label">Period To:</span><span>[MM/DD/YYYY]</span></div>
+      <div class="info-line"><span class="mono-label">Project No:</span><span>[Project #]</span></div>
+    </div>
+  </div>
+
+  <table class="g703">
+    <thead>
+      <tr>
+        <th colspan="3"></th>
+        <th colspan="2">Work Completed</th>
+        <th colspan="5"></th>
+      </tr>
+      <tr class="labels">
+        <th>
+          <div class="letter">A</div>
+          <div class="name">Item No.</div>
+          <div class="bracket">&nbsp;</div>
+        </th>
+        <th>
+          <div class="letter">B</div>
+          <div class="name">Description of Work</div>
+          <div class="bracket">&nbsp;</div>
+        </th>
+        <th>
+          <div class="letter">C</div>
+          <div class="name">Scheduled Value</div>
+          <div class="bracket">&nbsp;</div>
+        </th>
+        <th>
+          <div class="letter">D</div>
+          <div class="name">From Previous</div>
+          <div class="bracket">(D + E)</div>
+        </th>
+        <th>
+          <div class="letter">E</div>
+          <div class="name">This Period</div>
+          <div class="bracket">&nbsp;</div>
+        </th>
+        <th>
+          <div class="letter">F</div>
+          <div class="name">Materials Stored</div>
+          <div class="bracket">(Not in D or E)</div>
+        </th>
+        <th>
+          <div class="letter">G</div>
+          <div class="name">Total Completed</div>
+          <div class="bracket">(D + E + F)</div>
+        </th>
+        <th>
+          <div class="letter">%</div>
+          <div class="name">Percentage</div>
+          <div class="bracket" style="margin-top:32px;">(G ÷ C)</div>
+        </th>
+        <th>
+          <div class="letter">H</div>
+          <div class="name">Balance</div>
+          <div class="bracket">(C − G)</div>
+        </th>
+        <th>
+          <div class="letter">I</div>
+          <div class="name">Retainage</div>
+          <div class="bracket" style="margin-top:32px;">(If Variable)</div>
+        </th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- Example rows — replace with your divisions -->
+      <tr>
+        <td class="center">1</td>
+        <td class="uppercase">General Conditions</td>
+        <td class="num">$0.00</td>
+        <td class="num">-</td>
+        <td class="num">-</td>
+        <td class="num">-</td>
+        <td class="num bold">-</td>
+        <td class="num">0.0%</td>
+        <td class="num">-</td>
+        <td class="num">-</td>
+      </tr>
+      <tr>
+        <td class="center">2</td>
+        <td class="uppercase">Sitework</td>
+        <td class="num">$0.00</td>
+        <td class="num">-</td>
+        <td class="num">-</td>
+        <td class="num">-</td>
+        <td class="num bold">-</td>
+        <td class="num">0.0%</td>
+        <td class="num">-</td>
+        <td class="num">-</td>
+      </tr>
+    </tbody>
+    <tfoot>
+      <tr>
+        <td></td>
+        <td class="uppercase">Grand Total</td>
+        <td class="num">$0.00</td>
+        <td class="num">$0.00</td>
+        <td class="num">$0.00</td>
+        <td class="num">-</td>
+        <td class="num">$0.00</td>
+        <td class="num">0.0%</td>
+        <td class="num">$0.00</td>
+        <td class="num">$0.00</td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <div class="g703-footer">
+    Users may obtain validation of this document by requesting of the license a completed AIA Document D401 - Certification of Document&#39;s Authenticity
+  </div>
+</section>
+
+</body>
+</html>
