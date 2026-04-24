@@ -230,7 +230,7 @@ function XlsxSheetImpl({ data, title, percentCols = [], rawNumberCols = [], bold
                     ? statusTag === "no" ? "text-red-500 font-bold"
                     : statusTag.includes("tbd") ? "text-yellow-500 font-bold"
                     : statusTag.includes("to be confirmed") ? "text-red-500 font-bold"
-                    : statusTag.includes("confirm") ? "text-emerald-600 font-semibold"
+                    : statusTag.includes("confirm") ? "text-red-500 font-bold"
                     : "text-red-600 font-semibold"
                     : null;
                   const titleAttr = !isHeader && !isGroupHeader && !isEmpty(v) && !numeric ? String(v) : undefined;
