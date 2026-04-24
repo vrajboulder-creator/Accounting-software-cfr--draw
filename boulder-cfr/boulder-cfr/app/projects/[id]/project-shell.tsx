@@ -856,6 +856,28 @@ function CFRDetailDB({ data, simplified, selected = [], setSelected, active = tr
   const [fReceivedK1, setFReceivedK1] = React.useState<string[]>([]);
   const [fType, setFType] = React.useState<string[]>([]);
 
+  // Fetch the parsed xlsx debits once to recover the original `bidItem` column
+  // per transaction (the seed drops this when it can't map to a bid_line_item_id).
+  // Keyed by (divNum|date|description|grossCents) which is stable across sides.
+  const [parsedBidItemMap, setParsedBidItemMap] = React.useState<Map<string, string>>(new Map());
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch("/cfr-xlsx/parsed_debits.json")
+      .then((r) => r.ok ? r.json() : [])
+      .then((arr: Array<{ divNum: number; date: string; description: string; grossCents: number; bidItem?: string }>) => {
+        if (cancelled) return;
+        const m = new Map<string, string>();
+        for (const d of arr) {
+          if (!d.bidItem) continue;
+          const key = `${d.divNum}|${d.date || ""}|${(d.description || "").trim()}|${d.grossCents}`;
+          m.set(key, d.bidItem.trim());
+        }
+        setParsedBidItemMap(m);
+      })
+      .catch(() => { /* silent — fall back to name-match logic */ });
+    return () => { cancelled = true; };
+  }, []);
+
   const rows = React.useMemo(() => {
     const blMap = new Map(bidLineItems.map((b) => [b.id, b]));
     const divMap = new Map(divisions.map((d) => [d.id, d]));
@@ -870,6 +892,38 @@ function CFRDetailDB({ data, simplified, selected = [], setSelected, active = tr
       bidItem: string; paidBy: string; backup: string; receivedK1: string; type: string;
       uniqueCode: string;
     };
+    // Pre-index bid items by (division, lowercased name) so transactions without
+    // a bidLineItemId FK can still get matched by name substring.
+    const bliByDiv = new Map<string, { id: string; name: string }[]>();
+    for (const b of bidLineItems) {
+      const arr = bliByDiv.get(b.divisionId) ?? [];
+      arr.push({ id: b.id, name: b.name });
+      bliByDiv.set(b.divisionId, arr);
+    }
+    const matchBidItem = (t: typeof transactions[number]) => {
+      // 1. Direct FK to a bid_line_item.
+      if (t.bidLineItemId) {
+        const name = blMap.get(t.bidLineItemId)?.name;
+        if (name) return name;
+      }
+      // 2. Original xlsx bidItem column (for rows that didn't map to a catalog item).
+      const div = divMap.get(t.divisionId);
+      if (div && parsedBidItemMap.size > 0) {
+        const key = `${div.number}|${t.date || ""}|${(t.description || "").trim()}|${t.amountCents}`;
+        const fromXlsx = parsedBidItemMap.get(key);
+        if (fromXlsx) return fromXlsx;
+      }
+      // 3. Last-resort name-substring match against catalog.
+      const candidates = bliByDiv.get(t.divisionId) ?? [];
+      const desc = (t.description || "").toLowerCase();
+      const comm = (t.commentary || "").toLowerCase();
+      const hits = candidates.filter((c) => {
+        const n = c.name.toLowerCase().trim();
+        return n && (desc.includes(n) || comm.includes(n));
+      }).sort((a, b) => b.name.length - a.name.length);
+      return hits[0]?.name || "";
+    };
+
     const entries: Entry[] = [];
     for (const t of transactions) {
       const div = divMap.get(t.divisionId);
@@ -886,7 +940,7 @@ function CFRDetailDB({ data, simplified, selected = [], setSelected, active = tr
         debitRetn: t.retainageCents,
         debitNet: t.netCents,
         creditGross: 0, creditRetn: 0, creditNet: 0,
-        bidItem: (t.bidLineItemId && blMap.get(t.bidLineItemId)?.name) || "",
+        bidItem: matchBidItem(t),
         paidBy: t.paidBy || "",
         backup: (t as unknown as { backup?: string }).backup || "",
         receivedK1: (t as unknown as { receivedK1?: string }).receivedK1 || "",
@@ -1020,7 +1074,7 @@ function CFRDetailDB({ data, simplified, selected = [], setSelected, active = tr
       ]);
     }
     return out;
-  }, [transactions, receivedFunds, divisions, bidLineItems, selected, simplified, search, fG703, fDescription, fCommentary, fVendor, fPaidBy, fBackup, fReceivedK1, fType]);
+  }, [transactions, receivedFunds, divisions, bidLineItems, selected, simplified, search, fG703, fDescription, fCommentary, fVendor, fPaidBy, fBackup, fReceivedK1, fType, parsedBidItemMap]);
 
   const uniqueOptions = React.useMemo(() => {
     const all = { g703: new Set<string>(), description: new Set<string>(), commentary: new Set<string>(), vendor: new Set<string>(), paidBy: new Set<string>(), backup: new Set<string>(), receivedK1: new Set<string>(), type: new Set<string>() };
@@ -1132,7 +1186,7 @@ function CFRDetailDB({ data, simplified, selected = [], setSelected, active = tr
           "9%",    // Vendor
           "5%",    // Paid By
           "4%",    // Backup
-          "4%",    // Received K1
+          "6%",    // Received K1
           "4%",    // Type
         ]}
         rowAccentFn={(_rIdx, row) => {
@@ -1252,14 +1306,13 @@ export function CFRTab({ data }: { data: ProjectPageData }) {
             <TabsTrigger value="summary">Summary</TabsTrigger>
             <TabsTrigger value="simplified">Simplified</TabsTrigger>
             <TabsTrigger value="detail">Detail</TabsTrigger>
-            {["contractor_admin","contractor_pm"].includes(role) && (
-              <TabsTrigger value="manage">Manage</TabsTrigger>
-            )}
           </TabsList>
         </div>
 
         <TabsContent value="summary">
-          <CFRSummaryDB data={data} />
+          <div className="max-w-[84rem] mx-auto">
+            <CFRSummaryDB data={data} />
+          </div>
         </TabsContent>
 
         <TabsContent value="simplified" forceMount className="data-[state=inactive]:hidden mt-3">
@@ -1268,10 +1321,6 @@ export function CFRTab({ data }: { data: ProjectPageData }) {
 
         <TabsContent value="detail" forceMount className="data-[state=inactive]:hidden mt-3">
           <CFRDetailDB data={data} selected={selectedDiv} setSelected={setSelectedDiv} active={activeTab === "detail"} />
-        </TabsContent>
-
-        <TabsContent value="manage">
-          <CFRManageView data={data} />
         </TabsContent>
 
       </Tabs>
