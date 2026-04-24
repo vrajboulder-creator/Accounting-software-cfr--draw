@@ -7,7 +7,7 @@ type Row = Cell[];
 
 function formatCellNumber(n: number, isPct = false): string {
   if (isPct) return `${(n * 100).toFixed(1)}%`;
-  if (Math.abs(n) < 0.005) return "-";
+  if (Math.abs(n) < 0.005) return "";
   const formatted = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Math.abs(n));
   return n < 0 ? `(${formatted})` : formatted;
 }
@@ -212,6 +212,8 @@ function XlsxSheetImpl({ data, title, percentCols = [], rawNumberCols = [], bold
                     ? excelDateToString(v as number)
                     : numeric
                     ? formatCellNumber(v as number, pct)
+                    : typeof v === "string" && /^[\s—–-]+$/.test(v.trim())
+                    ? ""
                     : String(v);
                   const hasLineBreak = typeof rawDisplay === "string" && rawDisplay.includes("\n");
                   const display = hasLineBreak

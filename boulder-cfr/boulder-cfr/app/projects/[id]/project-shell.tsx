@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { TopBar } from "@/components/shell";
 import { useRole } from "@/components/role-context";
-import { cn, formatCurrency, formatPercent, formatDate } from "@/lib/utils";
+import { cn, formatCurrency, formatPercent, formatDate, downloadCsv } from "@/lib/utils";
 import { permissions, ROLES } from "@/lib/roles";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -739,12 +739,13 @@ function CFRSummaryDB({ data }: { data: ProjectPageData }) {
   const { divisions } = data;
   const rows: Cell[][] = [];
   rows.push(["AIA Summary — by Division"]);
-  rows.push(["", "", "", "Debits - Gross Amount", "", "", "Credits", "", ""]);
-  rows.push(["#", "Category", "Scheduled Value", "Gross Spend", "Retainage", "Net Spend", "Net Received", "Cash Balance", "Remaining"]);
+  rows.push(["", "", "", "Debits - Gross Amount", "", "", "Credits", "", "", ""]);
+  rows.push(["#", "Category", "Scheduled Value", "Gross Spend", "Retainage", "Net Spend", "Net Received", "Cash Balance", "Net Receivable", "Remaining"]);
   let totSch = 0, totGross = 0, totRetn = 0, totNetSpend = 0, totNetRec = 0;
   divisions.forEach((d) => {
     const netSpend = d.grossSpendCents - d.retainageCents;
     const cashBalance = d.netReceivedCents - netSpend;
+    const netReceivable = d.grossSpendCents - d.netReceivedCents;
     const remaining = d.scheduledValueCents - d.grossSpendCents;
     rows.push([
       d.number, d.name,
@@ -754,6 +755,7 @@ function CFRSummaryDB({ data }: { data: ProjectPageData }) {
       netSpend / 100,
       d.netReceivedCents / 100,
       cashBalance / 100,
+      netReceivable / 100,
       remaining / 100,
     ]);
     totSch += d.scheduledValueCents;
@@ -762,7 +764,7 @@ function CFRSummaryDB({ data }: { data: ProjectPageData }) {
     totNetSpend += netSpend;
     totNetRec += d.netReceivedCents;
   });
-  rows.push(["", "TOTALS", totSch / 100, totGross / 100, totRetn / 100, totNetSpend / 100, totNetRec / 100, (totNetRec - totNetSpend) / 100, (totSch - totGross) / 100]);
+  rows.push(["", "TOTALS", totSch / 100, totGross / 100, totRetn / 100, totNetSpend / 100, totNetRec / 100, (totNetRec - totNetSpend) / 100, (totGross - totNetRec) / 100, (totSch - totGross) / 100]);
 
   return (
     <XlsxSheet
@@ -772,7 +774,7 @@ function CFRSummaryDB({ data }: { data: ProjectPageData }) {
       mergeRows={[0, 1]}
       boldRows={[2, rows.length - 1]}
       rawNumberCols={[0]}
-      colWidths={["4%", "20%", "10%", "10%", "9%", "10%", "10%", "9%", "10%"]}
+      colWidths={["3%", "17%", "9%", "9%", "8%", "9%", "9%", "9%", "9%", "9%"]}
       rowAccentFn={(rIdx, row) => {
         if (rIdx < 3 || rIdx >= rows.length - 1) return null;
         const netSpend = row[5];
@@ -1223,10 +1225,23 @@ export function CFRTab({ data }: { data: ProjectPageData }) {
           <div className="text-[11px] uppercase tracking-[0.18em] font-semibold text-boulder-600">Cost-to-Finish Report</div>
           <h1 className="mt-1.5 font-display text-3xl font-bold tracking-tight text-neutral-950">Internal cost tracking</h1>
         </div>
-        <div>
-          <div className="text-[11px] uppercase tracking-wider font-semibold text-neutral-500">Remaining budget</div>
-          <div className={`mt-1 font-display text-2xl font-bold tabular ${remaining < 0 ? "text-red-600" : "text-neutral-950"}`}>
-            {formatCurrency(remaining, { compact: true })}
+        <div className="flex items-center gap-4">
+          <Button variant="outline" size="sm" onClick={() => {
+            const rows: (string|number|null)[][] = [["#","Division","Scheduled Value","Gross Spend","Retainage","Net Spend","Net Received","Cash Balance","Net Receivable","Remaining"]];
+            for (const d of divisions) {
+              const netSpend = d.grossSpendCents - d.retainageCents;
+              const cashBalance = d.netReceivedCents - netSpend;
+              const netReceivable = d.grossSpendCents - d.netReceivedCents;
+              const rem = d.scheduledValueCents - d.grossSpendCents;
+              rows.push([d.number, d.name, (d.scheduledValueCents/100).toFixed(2), (d.grossSpendCents/100).toFixed(2), (d.retainageCents/100).toFixed(2), (netSpend/100).toFixed(2), (d.netReceivedCents/100).toFixed(2), (cashBalance/100).toFixed(2), (netReceivable/100).toFixed(2), (rem/100).toFixed(2)]);
+            }
+            downloadCsv(`cfr-summary-${data.project.projectNumber || data.project.id}`, rows);
+          }}><Download className="h-4 w-4" />Export CSV</Button>
+          <div>
+            <div className="text-[11px] uppercase tracking-wider font-semibold text-neutral-500">Remaining budget</div>
+            <div className={`mt-1 font-display text-2xl font-bold tabular ${remaining < 0 ? "text-red-600" : "text-neutral-950"}`}>
+              {formatCurrency(remaining, { compact: true })}
+            </div>
           </div>
         </div>
       </div>
@@ -1378,12 +1393,19 @@ export function BackupTab({ data }: { data: ProjectPageData }) {
 
   return (
     <main className="max-w-7xl mx-auto px-6 py-8">
-      <div className="mb-6">
-        <div className="text-[11px] uppercase tracking-[0.18em] font-semibold text-boulder-600">Invoice Backup</div>
-        <h1 className="mt-1.5 font-display text-3xl font-bold tracking-tight text-neutral-950">Backup</h1>
-        <p className="mt-1 text-sm text-neutral-500">
-          {project.name} · {filteredGroups.length} of {groups.length} backup{groups.length === 1 ? "" : "s"}
-        </p>
+      <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.18em] font-semibold text-boulder-600">Invoice Backup</div>
+          <h1 className="mt-1.5 font-display text-3xl font-bold tracking-tight text-neutral-950">Backup</h1>
+          <p className="mt-1 text-sm text-neutral-500">
+            {project.name} · {filteredGroups.length} of {groups.length} backup{groups.length === 1 ? "" : "s"}
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => {
+          const rows: (string|number|null)[][] = [["Backup #","Primary Vendor","Vendor Count","Line Items","Total Amount","Total Net"]];
+          for (const g of filteredGroups) rows.push([g.backupNo, g.primaryVendor, g.vendorNames.length, g.txs.length, (g.totalAmount/100).toFixed(2), (g.totalNet/100).toFixed(2)]);
+          downloadCsv(`backup-${project.projectNumber || project.id}`, rows);
+        }}><Download className="h-4 w-4" />Export CSV</Button>
       </div>
 
       <div className="sticky top-[56px] z-20 bg-white py-2 mb-3 flex items-center gap-2 flex-wrap shadow-sm">
@@ -2011,9 +2033,16 @@ export function DrawsTab({ data, initialDrawId }: { data: ProjectPageData; initi
           <h1 className="mt-1.5 font-display text-3xl font-bold tracking-tight text-neutral-950">Draws</h1>
           <p className="mt-1 text-sm text-neutral-500">AIA G702 / G703 billing applications to {project.name}&rsquo;s owner.</p>
         </div>
-        {permissions.canEditDraw(role) && (
-          <Button onClick={() => setShowNewDraw(true)}><Plus className="h-4 w-4" />New draw</Button>
-        )}
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => {
+            const rows: (string|number|null)[][] = [["Draw #","Period End","Status","Completed to Date","Retainage","Payment Due"]];
+            for (const d of filteredDraws) rows.push([d.number, d.periodEndDate, d.status, (d.line4CompletedStoredCents/100).toFixed(2), (d.line5RetainageCents/100).toFixed(2), (d.line8CurrentPaymentDueCents/100).toFixed(2)]);
+            downloadCsv(`draws-${project.projectNumber || project.id}`, rows);
+          }}><Download className="h-4 w-4" />Export CSV</Button>
+          {permissions.canEditDraw(role) && (
+            <Button onClick={() => setShowNewDraw(true)}><Plus className="h-4 w-4" />New draw</Button>
+          )}
+        </div>
       </div>
 
       {showNewDraw && (
@@ -2210,6 +2239,7 @@ function DrawDetailView({ data, draw, drawLineItems, onBack }: {
     return () => document.removeEventListener("mousedown", onOut);
   }, [rangesOpen]);
   const [showDebitCredit, setShowDebitCredit] = React.useState(false);
+  const [bidView, setBidView] = React.useState<"draw" | "overall">("draw");
   const { role } = useRole();
   const [isPending, startTransition] = useTransition();
 
@@ -2253,12 +2283,12 @@ function DrawDetailView({ data, draw, drawLineItems, onBack }: {
 
       <div className="mt-6 grid gap-6 grid-cols-1">
         <div>
-          <div className="space-y-6">
+          <div className="flex flex-wrap gap-3 [&>details[open]]:basis-full [&>details>*:not(summary)]:mt-2">
 
           {/* ── G702 ── */}
           <details id="g702" className="group">
-            <summary className="cursor-pointer list-none flex items-center gap-2 px-3 py-1.5 rounded-md bg-neutral-100 hover:bg-neutral-200 font-mono text-xs font-semibold uppercase tracking-wider text-neutral-800 select-none [&::-webkit-details-marker]:hidden w-80">
-              <span className="flex-1">G702 — Application & Certification for Payment</span>
+            <summary className="cursor-pointer list-none flex items-center justify-center gap-2 px-3 py-1.5 rounded-md bg-neutral-100 hover:bg-neutral-200 font-mono text-xs font-semibold uppercase tracking-wider text-neutral-800 select-none [&::-webkit-details-marker]:hidden w-80">
+              <span className="flex-1">G702</span>
               <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" />
             </summary>
             <div style={{ fontFamily: '"Times New Roman", Times, serif' }} className="aia-form mt-2 rounded-xl border-2 border-neutral-900 bg-white overflow-hidden text-[13px] text-neutral-900 w-full">
@@ -2428,8 +2458,8 @@ function DrawDetailView({ data, draw, drawLineItems, onBack }: {
 
           {/* ── G703 ── */}
           <details id="g703" className="group">
-            <summary className="cursor-pointer list-none flex items-center gap-2 px-3 py-1.5 rounded-md bg-neutral-100 hover:bg-neutral-200 font-mono text-xs font-semibold uppercase tracking-wider text-neutral-800 select-none [&::-webkit-details-marker]:hidden w-80">
-              <span className="flex-1">G703 — Continuation Sheet</span>
+            <summary className="cursor-pointer list-none flex items-center justify-center gap-2 px-3 py-1.5 rounded-md bg-neutral-100 hover:bg-neutral-200 font-mono text-xs font-semibold uppercase tracking-wider text-neutral-800 select-none [&::-webkit-details-marker]:hidden w-80">
+              <span className="flex-1">G703</span>
               <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" />
             </summary>
             <div className="mt-2" style={{ marginLeft: "-6rem", marginRight: "-6rem" }}>
@@ -2537,7 +2567,7 @@ function DrawDetailView({ data, draw, drawLineItems, onBack }: {
 
           {/* ── Bid ── */}
           <details id="bid" className="group">
-            <summary className="cursor-pointer list-none flex items-center gap-2 px-3 py-1.5 rounded-md bg-neutral-100 hover:bg-neutral-200 font-mono text-xs font-semibold uppercase tracking-wider text-neutral-800 select-none [&::-webkit-details-marker]:hidden w-80">
+            <summary className="cursor-pointer list-none flex items-center justify-center gap-2 px-3 py-1.5 rounded-md bg-neutral-100 hover:bg-neutral-200 font-mono text-xs font-semibold uppercase tracking-wider text-neutral-800 select-none [&::-webkit-details-marker]:hidden w-80">
               <span className="flex-1">Bid</span>
               <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" />
             </summary>
@@ -2590,6 +2620,26 @@ function DrawDetailView({ data, draw, drawLineItems, onBack }: {
                     Clear
                   </button>
                 )}
+                <div className="shrink-0 inline-flex rounded border border-neutral-300 overflow-hidden text-[10px] font-semibold uppercase tracking-wider">
+                  <button
+                    onClick={() => setBidView("draw")}
+                    className={cn(
+                      "px-2 py-1",
+                      bidView === "draw" ? "bg-boulder-600 text-white" : "bg-white text-neutral-700 hover:bg-neutral-50"
+                    )}
+                  >
+                    Draw #{draw.number}
+                  </button>
+                  <button
+                    onClick={() => setBidView("overall")}
+                    className={cn(
+                      "px-2 py-1 border-l border-neutral-300",
+                      bidView === "overall" ? "bg-boulder-600 text-white" : "bg-white text-neutral-700 hover:bg-neutral-50"
+                    )}
+                  >
+                    Overall
+                  </button>
+                </div>
                 <button
                   onClick={() => setShowDebitCredit((v) => !v)}
                   className={cn(
@@ -2620,8 +2670,21 @@ function DrawDetailView({ data, draw, drawLineItems, onBack }: {
                   return true;
                 });
                 if (!items.length) return null;
+                // Spend per item, scoped to the active bidView (draw vs overall).
+                // Use identical matching logic in both branches so Overall >= any single draw.
+                const spendFor = (b: typeof items[number]) => {
+                  const bliName = (b.name || "").trim().toLowerCase();
+                  const nameMatches = (s?: string | null) => !!s && s.toLowerCase().includes(bliName);
+                  return data.transactions
+                    .filter((t) =>
+                      (bidView === "draw" ? t.drawNumber === draw.number : true) &&
+                      (t.bidLineItemId === b.id ||
+                       (t.divisionId === b.divisionId && (nameMatches(t.description) || nameMatches(t.commentary) || nameMatches(t.counterparty))))
+                    )
+                    .reduce((s, t) => s + t.amountCents, 0);
+                };
                 const totalBudget = items.reduce((s, b) => s + b.budgetCents, 0);
-                const totalActual = items.reduce((s, b) => s + b.actualCents, 0);
+                const totalActual = items.reduce((s, b) => s + spendFor(b), 0);
                 const totalRemaining = totalBudget - totalActual;
                 // Division-level debit/credit totals
                 const totalDebit = showDebitCredit ? data.transactions
@@ -2644,12 +2707,12 @@ function DrawDetailView({ data, draw, drawLineItems, onBack }: {
                           {totalRemaining < 0 ? `(${formatCurrency(-totalRemaining)})` : formatCurrency(totalRemaining)} remaining
                         </span>
                         {(() => {
-                          const debitSum = data.transactions.filter((t) => t.divisionId === div.id).reduce((s, t) => s + t.amountCents, 0);
+                          const debitSum = data.transactions.filter((t) => t.divisionId === div.id && (bidView === "draw" ? t.drawNumber === draw.number : true)).reduce((s, t) => s + t.amountCents, 0);
                           return <span className="text-neutral-500">Total Debit: <span className="font-semibold text-red-700">{formatCurrency(debitSum)}</span></span>;
                         })()}
                         {showDebitCredit && (() => {
-                          const creditSum = (data.receivedFunds ?? []).filter((r) => r.divisionId === div.id).reduce((s, r) => s + r.grossCents, 0);
-                          const debitSum = data.transactions.filter((t) => t.divisionId === div.id).reduce((s, t) => s + t.amountCents, 0);
+                          const creditSum = (data.receivedFunds ?? []).filter((r) => r.divisionId === div.id && (bidView === "draw" ? r.drawNumber === draw.number : true)).reduce((s, r) => s + r.grossCents, 0);
+                          const debitSum = data.transactions.filter((t) => t.divisionId === div.id && (bidView === "draw" ? t.drawNumber === draw.number : true)).reduce((s, t) => s + t.amountCents, 0);
                           const diff = creditSum - debitSum;
                           return (
                             <>
@@ -2691,7 +2754,7 @@ function DrawDetailView({ data, draw, drawLineItems, onBack }: {
                           <th className="text-right py-2 px-3">Budget</th>
                           <th className="text-right py-2 px-3">Total Spend</th>
                           <th className="text-right py-2 px-3">Remaining</th>
-                          <th className="text-right py-2 px-3 text-boulder-700">Draw #{draw.number}</th>
+                          <th className="text-right py-2 px-3 text-boulder-700">{bidView === "overall" ? "All Draws" : `Draw #${draw.number}`}</th>
                           <th className={cn("text-right py-2", showDebitCredit ? "px-3" : "pl-3 pr-5")}>%</th>
                           {showDebitCredit && <th className="text-center py-2 px-3 text-red-700 font-normal">Gross Amount</th>}
                           {showDebitCredit && <th className="text-center py-2 px-3 text-red-700 font-normal">Retainage</th>}
@@ -2700,16 +2763,18 @@ function DrawDetailView({ data, draw, drawLineItems, onBack }: {
                       </thead>
                       <tbody>
                         {items.map((b) => {
-                          const pct = b.budgetCents > 0 ? (b.actualCents / b.budgetCents) * 100 : 0;
-                          const rem = b.budgetCents - b.actualCents;
+                          const itemSpend = spendFor(b);
+                          const pct = b.budgetCents > 0 ? (itemSpend / b.budgetCents) * 100 : 0;
+                          const rem = b.budgetCents - itemSpend;
                           const over = rem < 0;
                           let dG = 0, dR = 0, dN = 0;
                           if (showDebitCredit) {
                             const bliName = (b.name || "").trim().toLowerCase();
                             const nameMatches = (s?: string | null) => !!s && s.toLowerCase().includes(bliName);
                             const matched = data.transactions.filter((t) =>
-                              t.bidLineItemId === b.id ||
-                              (t.divisionId === b.divisionId && (nameMatches(t.description) || nameMatches(t.commentary) || nameMatches(t.counterparty)))
+                              (bidView === "draw" ? t.drawNumber === draw.number : true) &&
+                              (t.bidLineItemId === b.id ||
+                               (t.divisionId === b.divisionId && (nameMatches(t.description) || nameMatches(t.commentary) || nameMatches(t.counterparty))))
                             );
                             dG = matched.reduce((s, t) => s + t.amountCents, 0);
                             dR = matched.reduce((s, t) => s + (t.retainageCents || 0), 0);
@@ -2725,21 +2790,21 @@ function DrawDetailView({ data, draw, drawLineItems, onBack }: {
                                 </div>
                               </td>
                               <td className="py-2.5 px-3 text-right text-neutral-500">{formatCurrency(b.budgetCents)}</td>
-                              <td className="py-2.5 px-3 text-right font-medium">{formatCurrency(b.actualCents)}</td>
+                              <td className="py-2.5 px-3 text-right font-medium">{formatCurrency(itemSpend)}</td>
                               <td className={cn("py-2.5 px-3 text-right font-semibold", over ? "text-red-600" : "text-emerald-700")}>
                                 {over ? `(${formatCurrency(-rem)})` : formatCurrency(rem)}
                               </td>
                               {(() => {
                                 const bliName = (b.name || "").trim().toLowerCase();
                                 const nameMatches = (s?: string | null) => !!s && s.toLowerCase().includes(bliName);
-                                const currentDrawSum = data.transactions
-                                  .filter((t) => t.drawNumber === draw.number &&
+                                const drawSum = data.transactions
+                                  .filter((t) => (bidView === "draw" ? t.drawNumber === draw.number : true) &&
                                     (t.bidLineItemId === b.id ||
                                      (t.divisionId === b.divisionId && (nameMatches(t.description) || nameMatches(t.commentary) || nameMatches(t.counterparty)))))
                                   .reduce((s, t) => s + t.amountCents, 0);
                                 return (
                                   <td className="py-2.5 px-3 text-right tabular text-boulder-700 font-medium">
-                                    {currentDrawSum ? formatCurrency(currentDrawSum) : "—"}
+                                    {drawSum ? formatCurrency(drawSum) : "—"}
                                   </td>
                                 );
                               })()}
@@ -2757,11 +2822,11 @@ function DrawDetailView({ data, draw, drawLineItems, onBack }: {
                       </tbody>
                       <tfoot>
                         {(() => {
-                          const divDebits = data.transactions.filter((t) => t.divisionId === div.id);
+                          const divDebits = data.transactions.filter((t) => t.divisionId === div.id && (bidView === "draw" ? t.drawNumber === draw.number : true));
                           const debG = divDebits.reduce((s, t) => s + t.amountCents, 0);
                           const debR = divDebits.reduce((s, t) => s + (t.retainageCents || 0), 0);
                           const debN = divDebits.reduce((s, t) => s + t.netCents, 0);
-                          const divCredits = (data.receivedFunds ?? []).filter((r) => r.divisionId === div.id);
+                          const divCredits = (data.receivedFunds ?? []).filter((r) => r.divisionId === div.id && (bidView === "draw" ? r.drawNumber === draw.number : true));
                           const credG = divCredits.reduce((s, r) => s + r.grossCents, 0);
                           const credR = divCredits.reduce((s, r) => s + (r.retainageCents || 0), 0);
                           const credN = divCredits.reduce((s, r) => s + r.netCents, 0);
@@ -2777,7 +2842,7 @@ function DrawDetailView({ data, draw, drawLineItems, onBack }: {
                                 <td className={cn("py-2 px-3 text-right tabular", totalRemaining < 0 ? "text-red-600" : "text-emerald-700")}>{formatCurrency(totalRemaining)}</td>
                                 {(() => {
                                   const curDrawSum = data.transactions
-                                    .filter((t) => t.drawNumber === draw.number && items.some((b) => b.id === t.bidLineItemId || b.divisionId === t.divisionId))
+                                    .filter((t) => (bidView === "draw" ? t.drawNumber === draw.number : true) && items.some((b) => b.id === t.bidLineItemId || b.divisionId === t.divisionId))
                                     .reduce((s, t) => s + t.amountCents, 0);
                                   return <td className="py-2 px-3 text-right tabular text-boulder-700">{curDrawSum ? formatCurrency(curDrawSum) : "—"}</td>;
                                 })()}
@@ -2876,11 +2941,46 @@ export function TransactionsTab({ data }: { data: ProjectPageData }) {
   });
   const total = filtered.reduce((s, t) => s + t.amountCents, 0);
 
+  // A transaction counts as "to be paid" only when the source sheet's receivedK1
+  // field explicitly flags it as unpaid/unconfirmed. Everything else (including
+  // "NA", "Yes", empty) defaults to paid. Reason: 1,660/1,872 records have
+  // receivedK1="NA" which means "not applicable", not "pending".
+  const isToBePaid = (t: unknown) => {
+    const rk = ((t as { receivedK1?: string }).receivedK1 || "").trim().toLowerCase();
+    return /^(no|\[?(to be paid|to be confirmed|tbd|confirm)\]?)$/i.test(rk);
+  };
+
+  // Group by vendor so repeat vendors collapse into an expandable parent row.
+  const vendorGroups = React.useMemo(() => {
+    const map = new Map<string, typeof filtered>();
+    for (const t of filtered) {
+      const key = t.vendor || "—";
+      const arr = map.get(key);
+      if (arr) arr.push(t);
+      else map.set(key, [t]);
+    }
+    return [...map.entries()].map(([vendor, items]) => {
+      const gross = items.reduce((s, t) => s + t.amountCents, 0);
+      const retn = items.reduce((s, t) => s + (t.retainageCents || 0), 0);
+      const net = items.reduce((s, t) => s + (t.netCents || 0), 0);
+      const toBePaid = items.filter(isToBePaid).reduce((s, t) => s + t.amountCents, 0);
+      const pendingCount = items.filter(isToBePaid).length;
+      return { vendor, items, gross, retn, net, toBePaid, pendingCount };
+    }).sort((a, b) => b.gross - a.gross);
+  }, [filtered]);
+
+  const [expanded, setExpanded] = React.useState<Set<string>>(new Set());
+  const toggle = (v: string) => setExpanded((prev) => {
+    const n = new Set(prev);
+    if (n.has(v)) n.delete(v); else n.add(v);
+    return n;
+  });
+
   const PAGE_SIZE = 50;
   const [page, setPage] = React.useState(1);
   React.useEffect(() => { setPage(1); }, [query, filterDivision, filterDraw, filterStatus, filterType, filterVendor, dateFrom, dateTo]);
-  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const pageCount = Math.max(1, Math.ceil(vendorGroups.length / PAGE_SIZE));
+  const pageGroups = vendorGroups.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   function resetFilters() {
     setQuery(""); setFilterDivision([]); setFilterDraw([]); setFilterStatus([]); setFilterType([]); setFilterVendor([]); setDateFrom(""); setDateTo("");
@@ -2909,7 +3009,7 @@ export function TransactionsTab({ data }: { data: ProjectPageData }) {
   }
 
   return (
-    <main className="max-w-7xl mx-auto px-6 py-8">
+    <main className="max-w-[96rem] mx-auto px-6 py-8">
       <div className="flex items-end justify-between gap-6 flex-wrap">
         <div>
           <div className="text-[11px] uppercase tracking-[0.18em] font-semibold text-boulder-600">Cost ledger</div>
@@ -2921,7 +3021,27 @@ export function TransactionsTab({ data }: { data: ProjectPageData }) {
             <Search className="h-4 w-4 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <Input placeholder="Search…" className="pl-9 w-[220px]" value={query} onChange={(e) => setQuery(e.target.value)} />
           </div>
-          <Button variant="outline" size="sm"><Download className="h-4 w-4" />Export</Button>
+          <Button variant="outline" size="sm" onClick={() => {
+            const rows: (string|number|null)[][] = [["Date","Vendor","Division","Draw #","G703","Commentary","Type","Payment Status","Gross Amount","Retainage","Net Amount","To Be Paid"]];
+            for (const t of filtered) {
+              const div = divisions.find((d) => d.id === t.divisionId);
+              rows.push([
+                t.date || "",
+                t.vendor || "",
+                div ? `${div.number} · ${div.name}` : "",
+                (t as any).drawNumber ?? "",
+                (t as any).g703 ?? "",
+                (t as any).commentary ?? "",
+                t.type,
+                isToBePaid(t) ? "pending" : "paid",
+                (t.amountCents / 100).toFixed(2),
+                ((t.retainageCents || 0) / 100).toFixed(2),
+                ((t.netCents || 0) / 100).toFixed(2),
+                isToBePaid(t) ? (t.amountCents / 100).toFixed(2) : "",
+              ]);
+            }
+            downloadCsv(`transactions-${project.projectNumber || project.id}`, rows);
+          }}><Download className="h-4 w-4" />Export CSV</Button>
           {permissions.canEditDraw(role) && (
             <Button size="sm" onClick={() => setShowNew(true)}><Plus className="h-4 w-4" />Add transaction</Button>
           )}
@@ -2996,40 +3116,134 @@ export function TransactionsTab({ data }: { data: ProjectPageData }) {
       )}
 
       <div className="mt-6 rounded-xl border border-neutral-200 bg-white overflow-hidden">
-        <div className="overflow-x-auto">
+        <div>
           <table className="w-full text-sm tabular">
-            <thead className="bg-neutral-50 text-[10px] uppercase tracking-wider font-semibold text-neutral-500">
+            <thead className="bg-neutral-50 text-[10px] uppercase tracking-wider font-semibold text-neutral-500 [&_th]:leading-tight">
               <tr>
-                <th className="text-left py-3 pl-5 pr-3 w-28">Date</th>
-                <th className="text-left py-3 px-3">Vendor</th>
-                <th className="text-left py-3 px-3">Description</th>
-                <th className="text-left py-3 px-3">Division</th>
-                <th className="text-left py-3 px-3">Type</th>
-                <th className="text-left py-3 px-3">Status</th>
-                <th className="text-right py-3 pl-3 pr-3">Amount</th>
+                <th className="text-left py-3 pl-4 pr-1 w-12"></th>
+                <th className="text-left py-3 px-3 min-w-[180px]">Vendor / Date</th>
+                <th className="text-left py-3 px-3 min-w-[110px]">Payment Status</th>
+                <th className="text-right py-3 px-3 min-w-[110px]">Gross Amount</th>
+                <th className="text-right py-3 px-3 min-w-[90px]">Retainage</th>
+                <th className="text-right py-3 px-3 min-w-[110px]">Net Amount</th>
+                <th className="text-right py-3 pl-3 pr-5 min-w-[90px]">To Be Paid</th>
                 <th className="w-10"></th>
               </tr>
             </thead>
             <tbody>
-              {pageRows.map((t) => {
-                const div = divisions.find((d) => d.id === t.divisionId);
+              {pageGroups.map((g) => {
+                const isMulti = g.items.length > 1;
+                const isOpen = expanded.has(g.vendor);
+                const only = g.items[0];
                 return (
-                  <tr key={t.id} className="border-t border-neutral-100 hover:bg-neutral-50/60">
-                    <td className="py-3 pl-5 pr-3 text-neutral-500 whitespace-nowrap">{t.date ? formatDate(t.date) : "—"}</td>
-                    <td className="py-3 px-3 font-medium text-neutral-950">{t.vendor}</td>
-                    <td className="py-3 px-3 text-neutral-700">{t.description}</td>
-                    <td className="py-3 px-3"><Badge variant="outline" className="font-normal">{div?.number} · {div?.name}</Badge></td>
-                    <td className="py-3 px-3 text-neutral-500 capitalize text-xs">{t.type.replace("_", " ")}</td>
-                    <td className="py-3 px-3"><Badge variant={t.paymentStatus === "paid" ? "success" : "warning"} className="capitalize">{t.paymentStatus}</Badge></td>
-                    <td className="py-3 pl-3 pr-3 text-right font-bold">{formatCurrency(t.amountCents, { showCents: true })}</td>
-                    <td className="py-3 pr-4">
-                      {permissions.canEditDraw(role) && (
-                        <button onClick={() => handleDelete(t.id)} className="text-neutral-300 hover:text-red-500 transition-colors">
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                  <React.Fragment key={g.vendor}>
+                    <tr
+                      className={cn(
+                        "border-t border-neutral-100",
+                        isMulti ? "cursor-pointer hover:bg-neutral-50/80 bg-neutral-50/40 font-semibold" : "hover:bg-neutral-50/60",
                       )}
-                    </td>
-                  </tr>
+                      onClick={isMulti ? () => toggle(g.vendor) : undefined}
+                    >
+                      <td className="py-3 pl-4 pr-1">
+                        {isMulti ? (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); toggle(g.vendor); }}
+                            className="inline-flex items-center justify-center h-6 w-6 rounded hover:bg-neutral-200 transition-colors"
+                            aria-label={isOpen ? "Collapse" : "Expand"}
+                          >
+                            <ChevronRight className={cn("h-4 w-4 text-neutral-600 transition-transform", isOpen && "rotate-90")} />
+                          </button>
+                        ) : null}
+                      </td>
+                      <td className="py-3 px-3 text-neutral-950">
+                        <div className="font-medium">{g.vendor}</div>
+                        {isMulti ? (
+                          <div className="text-[10px] font-normal text-neutral-500 mt-0.5">{g.items.length} line items</div>
+                        ) : (
+                          <div className="text-[10px] font-normal text-neutral-500 mt-0.5">{only.date ? formatDate(only.date) : ""}</div>
+                        )}
+                      </td>
+                      <td className="py-3 px-3">
+                        {isMulti ? (
+                          <span className="text-[11px] font-medium">
+                            <span className="text-emerald-700">{g.items.length - g.pendingCount} paid</span>
+                            <span className="text-neutral-400"> · </span>
+                            <span className={g.pendingCount > 0 ? "text-red-600 font-semibold" : "text-neutral-400"}>{g.pendingCount} pending</span>
+                          </span>
+                        ) : (
+                          <span className={cn("text-[11px] font-semibold capitalize", isToBePaid(only) ? "text-red-600" : "text-emerald-700")}>
+                            {isToBePaid(only) ? "pending" : "paid"}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 text-right font-bold text-neutral-900">{g.gross ? formatCurrency(g.gross, { showCents: true }) : ""}</td>
+                      <td className="py-3 px-3 text-right text-neutral-700">{g.retn ? formatCurrency(g.retn, { showCents: true }) : ""}</td>
+                      <td className="py-3 px-3 text-right text-neutral-700">{g.net ? formatCurrency(g.net, { showCents: true }) : ""}</td>
+                      <td className="py-3 pl-3 pr-5 text-right font-semibold">
+                        {g.toBePaid ? <span className="text-red-600">{formatCurrency(g.toBePaid, { showCents: true })}</span> : ""}
+                      </td>
+                      <td className="py-3 pr-4">
+                        {!isMulti && permissions.canEditDraw(role) && (
+                          <button onClick={(e) => { e.stopPropagation(); handleDelete(only.id); }} className="text-neutral-300 hover:text-red-500 transition-colors">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                    {isMulti && isOpen && (
+                      <tr className="bg-neutral-50/40">
+                        <td colSpan={8} className="p-0">
+                          <div className="px-8 py-3 overflow-x-auto">
+                            <table className="w-full text-xs tabular">
+                              <thead className="text-[10px] uppercase tracking-wider font-semibold text-neutral-500 [&_th]:leading-tight">
+                                <tr className="border-b border-neutral-200">
+                                  <th className="text-left py-2 pr-3 w-20">Date</th>
+                                  <th className="text-left py-2 px-3 min-w-[140px]">Description</th>
+                                  <th className="text-left py-2 px-3 w-16">Draw #</th>
+                                  <th className="text-left py-2 px-3 w-16">G703</th>
+                                  <th className="text-left py-2 px-3 min-w-[140px] max-w-[200px]">Commentary</th>
+                                  <th className="text-left py-2 px-3 w-20">Status</th>
+                                  <th className="text-right py-2 px-3 min-w-[95px]">Gross Amount</th>
+                                  <th className="text-right py-2 px-3 min-w-[85px]">Retainage</th>
+                                  <th className="text-right py-2 px-3 min-w-[95px]">Net Amount</th>
+                                  <th className="text-right py-2 px-3 min-w-[95px]">To Be Paid</th>
+                                  <th className="w-8"></th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {g.items.map((t) => {
+                                  return (
+                                    <tr key={t.id} className="border-b border-neutral-100 last:border-b-0">
+                                      <td className="py-2 pr-3 text-neutral-500 whitespace-nowrap">{t.date ? formatDate(t.date) : ""}</td>
+                                      <td className="py-2 px-3 text-neutral-700">{t.description || ""}</td>
+                                      <td className="py-2 px-3 text-neutral-600">{(t as any).drawNumber ?? ""}</td>
+                                      <td className="py-2 px-3 text-neutral-600">{(t as any).g703 ?? ""}</td>
+                                      <td className="py-2 px-3 text-neutral-600 max-w-[240px] truncate" title={(t as any).commentary ?? ""}>{(t as any).commentary ?? ""}</td>
+                                      <td className="py-2 px-3"><Badge variant={isToBePaid(t) ? "destructive" : "success"} className="capitalize">{isToBePaid(t) ? "pending" : "paid"}</Badge></td>
+                                      <td className="py-2 px-3 text-right font-medium">{t.amountCents ? formatCurrency(t.amountCents, { showCents: true }) : ""}</td>
+                                      <td className="py-2 px-3 text-right text-neutral-600">{t.retainageCents ? formatCurrency(t.retainageCents, { showCents: true }) : ""}</td>
+                                      <td className="py-2 px-3 text-right text-neutral-600">{t.netCents ? formatCurrency(t.netCents, { showCents: true }) : ""}</td>
+                                      <td className="py-2 px-3 text-right">
+                                        {isToBePaid(t) ? <span className="text-red-600 font-semibold">{formatCurrency(t.amountCents, { showCents: true })}</span> : ""}
+                                      </td>
+                                      <td className="py-2">
+                                        {permissions.canEditDraw(role) && (
+                                          <button onClick={() => handleDelete(t.id)} className="text-neutral-300 hover:text-red-500 transition-colors">
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                          </button>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 );
               })}
             </tbody>
@@ -3120,9 +3334,16 @@ export function ChangeOrdersTab({ data }: { data: ProjectPageData }) {
           <h1 className="mt-1.5 font-display text-3xl font-bold tracking-tight text-neutral-950">Change Orders</h1>
           <p className="mt-1 text-sm text-neutral-500">{changeOrders.length} total · {formatCurrency(pendingTotal + approvedTotal, { compact: true })} cumulative</p>
         </div>
-        {(role === "contractor_admin" || role === "contractor_pm") && (
-          <Button onClick={() => setShowNew(true)}><Plus className="h-4 w-4" />New change order</Button>
-        )}
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => {
+            const rows: (string|number|null)[][] = [["CO #","Date","Description","Status","Amount"]];
+            for (const c of filteredCOs) rows.push([c.number, c.date || "", c.description || "", c.status, (c.amountCents/100).toFixed(2)]);
+            downloadCsv(`change-orders-${project.projectNumber || project.id}`, rows);
+          }}><Download className="h-4 w-4" />Export CSV</Button>
+          {(role === "contractor_admin" || role === "contractor_pm") && (
+            <Button onClick={() => setShowNew(true)}><Plus className="h-4 w-4" />New change order</Button>
+          )}
+        </div>
       </div>
 
       {showNew && (

@@ -22,7 +22,7 @@ export function ProjectNav({ projectId }: { projectId: string }) {
     { href: `/projects/${projectId}/transactions`,   label: "Transactions",    match: "transactions",    roles: "contractor-only" },
     { href: `/projects/${projectId}/backup`,         label: "Backup",          match: "backup",          roles: "contractor-only" },
     { href: `/projects/${projectId}/team`,           label: "Team",            match: "team",            roles: "admin-only" },
-    { href: `/projects/${projectId}/settings`,       label: "Settings",        match: "settings",        roles: "admin-only" },
+    { href: `/projects/${projectId}/settings`,       label: "Settings",        match: "settings",        roles: "all" },
   ];
 
   const visible = tabs.filter((t) => {

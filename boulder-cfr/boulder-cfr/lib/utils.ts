@@ -27,6 +27,26 @@ export function formatPercent(bps: number, decimals = 1) {
   return (bps / 100).toFixed(decimals) + "%";
 }
 
+// CSV export helper. Accepts rows as arrays of primitives. Auto-escapes commas,
+// quotes, and newlines per RFC 4180. Triggers a browser download.
+export function downloadCsv(filename: string, rows: (string | number | null | undefined)[][]) {
+  const esc = (v: string | number | null | undefined) => {
+    if (v === null || v === undefined) return "";
+    const s = String(v);
+    return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const csv = rows.map((r) => r.map(esc).join(",")).join("\n");
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename.endsWith(".csv") ? filename : `${filename}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 export function formatDate(date: string | Date | null | undefined) {
   if (!date) return "—";
   let d: Date;
